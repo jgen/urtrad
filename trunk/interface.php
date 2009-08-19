@@ -21,6 +21,8 @@ $db_pass = 'urtlogs';
 
 $db_name = 'rcon_db';
 $db_table = '';
+
+
 $qry = '';
 
 $db_link = mysql_connect($db_host .':'. $db_port, $db_user, $db_pass);

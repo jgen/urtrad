@@ -19,6 +19,7 @@ require './urtvars.pl';		# Not currently used
 
 
 # ----- Database Configuration -------
+# TODO: centralized config for database - shared between rcon.pl and interface.php
 my $db_server	= 'mysql';
 my $db_host 	= 'localhost';
 my $db_port		= '13390';
