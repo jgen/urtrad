@@ -13,7 +13,7 @@ header("Cache-Control: post-check=0, pre-check=0", false);
 // always modified
 header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 
-
+// TODO: centralized config for database - shared between rcon.pl and interface.php
 $db_host = 'localhost';
 $db_port = 13390;
 $db_user = 'rconlogs';
