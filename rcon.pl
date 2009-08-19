@@ -15,7 +15,7 @@ $Data::Dumper::Sortkeys = 1;	# Sort the output of hashes by default
 use Socket;					# Communicating with ioUrbanTerror Server
 use DBI;					# For database access
 
-require './urtvars.pl';		# Not currently used
+require './urt_common.pl';		# Not currently used
 
 
 # ----- Database Configuration -------
