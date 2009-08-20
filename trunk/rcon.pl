@@ -9,7 +9,7 @@
 
 use strict;
 use warnings;
-use Data::Dumper;			# To be removed later
+use Data::Dumper;				# To be removed later
 $Data::Dumper::Sortkeys = 1;	# Sort the output of hashes by default
 
 use Socket;					# Communicating with ioUrbanTerror Server
@@ -359,7 +359,7 @@ sub urt_getStatus() {
 		}
 		
 		foreach ( @players ) {
-			$_ =~ m/^(-{0,1}\d+) (\d+) "([^"]*)"$/o;
+			$_ =~ m/^(-{0,1}\d+) (\d+) "([^\"]*)"$/o;
 			
 			$score	= $1;
 			$ping	= $2;
