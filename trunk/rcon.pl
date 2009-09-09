@@ -18,6 +18,16 @@ use DBI;					# For database access
 require './urt_common.pl';		# Not currently used
 
 
+close(STDOUT);
+close(STDERR);
+
+open (STDOUT, '>>', "/home/acme/temp/log") or die "Can't redirect STDOUT: $!";
+open (STDERR, ">&STDOUT")     or die "Can't dup STDOUT: $!";
+
+select STDERR; $| = 1; # make unbuffered
+select STDOUT; $| = 1; # make unbuffered
+
+
 # ----- Database Configuration -------
 # TODO: centralized config for database - shared between rcon.pl and interface.php
 my $db_server	= 'mysql';
