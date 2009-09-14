@@ -1,3 +1,8 @@
+-- ------------------------------------------------------
+-- urtRAD Database Creation
+-- Sept. 2009
+-- ------------------------------------------------------
+
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='TRADITIONAL';
@@ -36,8 +41,11 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 -- Table `rcon_db`.`maps`
 -- -----------------------------------------------------
 CREATE  TABLE IF NOT EXISTS `rcon_db`.`maps` (
+  `map_id` INT UNSIGNED NOT NULL AUTO_INCREMENT ,
   `map_name` VARCHAR(144) NOT NULL ,
-  `times_played` INT UNSIGNED NULL )
+  `times_played` INT UNSIGNED NULL ,
+  `duration` BIGINT UNSIGNED NOT NULL DEFAULT 0 ,
+  PRIMARY KEY (`map_id`) )
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
@@ -53,8 +61,7 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`current_players` (
   `qport` SMALLINT UNSIGNED NOT NULL ,
   `rate` SMALLINT UNSIGNED NOT NULL ,
   PRIMARY KEY (`slot_num`) )
-ENGINE = MyISAM   DEFAULT CHARACTER SET = latin5   ROW_FORMAT = FIXED;
-
+ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
@@ -65,8 +72,9 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`status` (
   `client_request` TINYINT UNSIGNED NULL DEFAULT 0 ,
   `log_lines_processed` BIGINT UNSIGNED NULL DEFAULT 0 ,
   `log_bytes_processed` BIGINT UNSIGNED NULL DEFAULT 0 ,
-  `log_last_check` INT UNSIGNED NULL DEFAULT 0 )
-ENGINE = MyISAM   DEFAULT CHARACTER SET = latin5   ROW_FORMAT = DYNAMIC;
+  `log_last_check` INT UNSIGNED NULL DEFAULT 0 ,
+  `last_update` DATETIME NULL )
+ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
@@ -79,6 +87,7 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`players` (
   `creation` DATETIME NULL ,
   PRIMARY KEY (`player_id`) )
 ENGINE = MyISAM  ROW_FORMAT = DYNAMIC;
+-- Should the row format for the player name be fixed?
 
 
 -- -----------------------------------------------------
@@ -88,6 +97,7 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`ips` (
   `ip` INT UNSIGNED NOT NULL ,
   `ip_text` CHAR(15) ASCII NOT NULL ,
   `player_id` INT UNSIGNED NULL ,
+  `creation` DATETIME NULL ,
   PRIMARY KEY (`ip`) ,
   INDEX `player_id` (`player_id` ASC) ,
   CONSTRAINT `player_id`
@@ -113,7 +123,6 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`guids` (
     ON DELETE CASCADE
     ON UPDATE NO ACTION)
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
-
 
 
 -- -----------------------------------------------------
@@ -160,6 +169,7 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`servers` (
   `svars` TEXT(1024) NULL ,
   PRIMARY KEY (`server_id`) )
 ENGINE = MyISAM;
+
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
