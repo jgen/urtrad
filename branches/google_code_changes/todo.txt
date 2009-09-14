@@ -1,0 +1,14 @@
+
+------------------------------------------------------------------------
+
+TODO:
+
+	* Redesign database to not use packing of ips
+	  + (removes finite limit on ips per name & names per ip)
+	* 
+	* Work on log rotation over ftp
+
+
+
+
+

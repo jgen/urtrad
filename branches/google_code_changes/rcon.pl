@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #------------------------------------------------------------------------------
 #	Rcon Monitoring Script	[RAD or something or other]
-#	Date:	July/August 2009
+#	Date:	August/September 2009
 #	Author:	Jeff Genovy (jgen)
 #	This code is released under a BSD style license.
 #	( see LICENSE.txt file for details )
@@ -15,13 +15,13 @@ $Data::Dumper::Sortkeys = 1;	# Sort the output of hashes by default
 use Socket;					# Communicating with ioUrbanTerror Server
 use DBI;					# For database access
 
-require './urt_common.pl';		# Not currently used
+require './urt_common.pl';		# Not currently used fully, maybe later on [useful for stats]
 
-
+# Output to a log file to assist with debugging
 close(STDOUT);
 close(STDERR);
 
-open (STDOUT, '>>', "/home/acme/temp/log") or die "Can't redirect STDOUT: $!";
+open (STDOUT, '>>', "/tmp/urtrad_log") or die "Can't redirect STDOUT: $!";
 open (STDERR, ">&STDOUT")     or die "Can't dup STDOUT: $!";
 
 select STDERR; $| = 1; # make unbuffered
@@ -126,10 +126,33 @@ END {
 		print "Disconnecting from database...\n";
 		$dbhandle->disconnect();
 	}
+	dump_debug();
+	print "\n< END >\n";
 }
 
 
 ######## Subroutines ########
+
+sub dump_debug() {
+	# Dump debug information
+	print "\n" . '-' x 40 . "\n";
+	print '-->  Dumping Debug Information:';
+	
+	print "     main_status = " . $main_status . "\n";
+	print "  need_rcon_poll = ". $need_rcon_poll . "\n";
+	print "just_rcon_polled = ". $just_rcon_polled . "\n";
+	
+	print "--> main_player_hash:\n";
+	warn Dumper \%main_player_hash;
+	print "--> secondary_player_hash:\n";
+	warn Dumper \%secondary_player_hash;
+	print "--> connecting_players:\n";
+	warn Dumper \%connecting_players;
+	print "--> map_list_hash:\n";
+	warn Dumper \%map_list_hash;
+	
+	print "\n" . '-' x 40 . "\n";
+}
 
 sub db_getStatus() {
 	my $status_query = "SELECT * FROM `status`";
@@ -1011,25 +1034,8 @@ while ($main_status) {
 
 	# Handle any 'client_request'
 	if ($client_request == -1) {
-
-		# Dump debug information
-		print "\n" . '-' x 40 . "\n";
-		print '-->  Dumping Debug Information:';
-		
-		print "     main_status = " . $main_status . "\n";
-		print "  need_rcon_poll = ". $need_rcon_poll . "\n";
-		print "just_rcon_polled = ". $just_rcon_polled . "\n";
-		
-		print "--> main_player_hash:\n";
-		warn Dumper \%main_player_hash;
-		print "--> secondary_player_hash:\n";
-		warn Dumper \%secondary_player_hash;
-		print "--> connecting_players:\n";
-		warn Dumper \%connecting_players;
-		print "--> map_list_hash:\n";
-		warn Dumper \%map_list_hash;
-		
-		print "\n" . '-' x 40 . "\n";
+	
+		dump_debug();
 		
 	} elsif ($client_request == -100) {		# Terminate program
 	
