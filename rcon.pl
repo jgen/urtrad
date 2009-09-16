@@ -337,7 +337,7 @@ sub urt_rconStatus() {
 					
 					if ($name eq '') { $name = ';NULL'; }	# This is pretty much a hack to cover players with no name (null length string)
 					
-					$tmp_str .= ",($pvars[1],$pvars[2],$pvars[3],". $dbhandle->quote($name) .",inet_aton('$pvars[6]'),$pvars[8],$pvars[9])";
+					$tmp_str .= ",($pvars[1],$pvars[2],$pvars[3],".$dbhandle->quote($name).",INET_ATON('$pvars[6]'),$pvars[8],$pvars[9])";
 					
 					$secondary_player_hash{$name} ={slot	=> $pvars[1],
 									score	=> $pvars[2],
@@ -506,7 +506,7 @@ sub changeName($$$) {
 	my $player_id = $main_player_hash{$old}->{player_id};
 
 	# IP Check
-	my $ips_qry = 'SELECT * FROM `ips` WHERE player_id='. $player_id .' AND ip=inet_aton('. $ip .')';
+	my $ips_qry = 'SELECT * FROM `ips` WHERE player_id='. $player_id .' AND ip=INET_ATON("'. $ip .'")';
 	my $ips_qry_hndl = $dbhandle->prepare($ips_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
 	$ips_qry_hndl->execute() or die("Unable to execute query.\n". $ips_qry_hndl->errstr . "\n");
 	my $ips_results = $ips_qry_hndl->fetchrow_arrayref();
@@ -519,7 +519,7 @@ sub changeName($$$) {
 		# - nothing really to do..
 	} else {
 		# New ip for this player name
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (inet_aton('.$ip.'),'.$ip.','.$player_id.',NOW('. $time .') )')
+		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),'.$ip.','.$player_id.',NOW('. $time .') )')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
 	$ips_qry_hndl->finish();
@@ -535,25 +535,17 @@ sub newPlayer($$) {
 		warn "Error: A Null player name was passed to newPlayer() ";
 		return;	}
 	
-	my $name	= $dbhandle->quote($player);			# escape the name for safe database useage
 	my $ip		= $secondary_player_hash{$player}->{ip};	# human readable ip address
 	
 	if (!$ip) {
 		warn "Error: The player passed to newPlayer() does not have an IP address. ";
 		return; }
-	
-	my $ip_packed	= inet_aton($ip);			# pack the ip address
-	my $p_id_packed	= '';					# list of packed player_ids
-	my $p_ip_list	= '';					# list of packed ip addresses
-	my $tmp_str	= '';	
+
+	my $name	= $dbhandle->quote($player);	# escape the name for safe database useage
+	my $playerid	= 0;				# pulled in from the database
+	my $duration	= 0;				# duration's default value is zero
 
 	printf("> Checking IP:%15s\tName: %-20s\t", $ip, $player);
-	
-	# Check if we have seen that IP before
-	my $ip_qry = "SELECT * FROM `ips` WHERE ip=INET_ATON('". $ip ."')";
-	my $ip_qry_hndl = $dbhandle->prepare($ip_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
-	$ip_qry_hndl->execute() or die("Unable to execute query.\n". $ip_qry_hndl->errstr ."\n");
-	my $ip_results = $ip_qry_hndl->fetchrow_arrayref();
 	
 	# Check if we have seen that Name before
 	my $name_qry = 'SELECT * FROM `players` WHERE name='. $name;
@@ -565,146 +557,73 @@ sub newPlayer($$) {
 	if ($name_qry_hndl->rows > 1) {
 		# Name listed in the players table more then once... this should _Not happen_ if the database is setup correctly
 		warn "-> Duplicate Name entries in 'players' table... ";
+		return;
 	} elsif ($name_qry_hndl->rows == 1) {
-		# Name is listed in the players table
-		$p_id_packed = pack ("N", @{$name_results}[0]);	# Store the player_id
-		$p_ip_list = @{$name_results}[2];				# Store the list of IPs for the player
-		$secondary_player_hash{$player}->{duration} = @{$name_results}[4];	# Store the old player duration
+		# Found player name in the table
+		$playerid = @{$name_results}[0];
+		$duration = @{$name_results}[2];
 	} else {
 		# We have not seen this name before...
 		print 'New name, adding to database...'."\n";
 		# Create a new entry in the players table
-		$dbhandle->do('INSERT INTO `players` (name,ips) VALUES ('.$name.','.$dbhandle->quote($ip_packed).')')
-		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
+		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.',0,NOW('.$time.'))')
+			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
+		# Now retrieve the player_id from the newly created entry
 		my $name_qry2 = 'SELECT * FROM `players` WHERE name='. $name;
 		my $name_qry2_hndl = $dbhandle->prepare($name_qry2) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
 		$name_qry2_hndl->execute() or die("Unable to execute query.\n". $name_qry2_hndl->errstr ."\n");
 		my $name_results2 = $name_qry2_hndl->fetchrow_arrayref();
 		
-		$p_id_packed = pack ("N", @{$name_results2}[0]);	# Store the player_id
-		$secondary_player_hash{$player}->{duration} = 0;	# Set the duration to Zero as it's a new name
+		$playerid = @{$name_results2}[0];
 		$name_qry2_hndl->finish();
 	}
+	$name_qry_hndl->finish();
 
-	# Store the Player_ID in the hash for faster access later on.
-	$secondary_player_hash{$player}->{player_id} = unpack("N",$p_id_packed);
+	# Store the information in the hash (will be copied to the main hash later on)
+	$secondary_player_hash{$player}->{player_id}	= $playerid;
+	$secondary_player_hash{$player}->{duration}	= $duration;
+	$secondary_player_hash{$player}->{time}		= $time;	# time player was detected
 
-	# Store the time we acknowledged them into the hash ( will be copied to the main hash later on)
-	$secondary_player_hash{$player}->{time} = $time;
-	
+
+	# Check if we have seen that IP before
+	my $ip_qry = 'SELECT * FROM `ips` WHERE ip=INET_ATON("'. $ip .'") AND player_id='. $secondary_player_hash{$player}->{player_id};
+	my $ip_qry_hndl = $dbhandle->prepare($ip_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
+	$ip_qry_hndl->execute() or die("Unable to execute query.\n". $ip_qry_hndl->errstr ."\n");
+	my $ip_results = $ip_qry_hndl->fetchrow_arrayref();
+
 	# IP Address Check
 	if ($ip_qry_hndl->rows > 1) {
-		# IP listed in the ips table more then once... this should _Not happen_ if the database is setup correctly
+		# IP AND Player_ID is listed more then once... this should _Not happen_ if the database is setup correctly
 		warn "-> Duplicate IP entries in 'ips' table... ";
+		return;
 	} elsif ($ip_qry_hndl->rows == 1) {
-		# The IP is listed in the IP table
-		# lets grab the list of players who have been seen with that IP
-		my $ip_playerids = $ip_results->[2];
-		my $num = length($ip_playerids) / 4;
-		my $offset = length($ip_playerids) % 4;
-		
-		if ($offset) {
-			warn "Error: $ip player_ids string - Invalid length\nTruncating string.";
-			$ip_playerids = substr($ip_playerids, 0, length($ip_playerids) - $offset);
-		}
-		
-		if (!length($ip_playerids)) {
-			warn "Error: $ip player_ids string - Zero length";
-			die();
-		}
-		
-		my @player_id_list;
-		
-		# convert the player_id string to an array of ints, each representing a player_id
-		for (my $i=0; $i<$num; $i++) {
-			push ( @player_id_list, unpack("N", substr($ip_playerids, $i*4, 4)) );
-		}
-		
-		# Now lets get all the names of the players that have been listed as using this IP
-		$tmp_str= '';
-		foreach (@player_id_list) {
-			$tmp_str .= ' OR player_id='.$_;
-		}
-		$tmp_str = substr($tmp_str, 3);
-					
-		my $query = 'SELECT name FROM `players` WHERE'. $tmp_str;
-		my $query_hndl = $dbhandle->prepare($query) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
-		$query_hndl->execute() or die("Unable to execute query.\n". $query_hndl->errstr ."\n");
-
-		if ($query_hndl->rows < 1) {
-			# there is a problem with the database... 
-			warn "No players were found with: '$tmp_str'\n";
-			warn "However, those IDs were listed in ips table.\n";
-			warn "This would imply that something is wrong with the database...";
-			warn "Debug Information:\n";
-			warn Dumper "SELECT * FROM `ips` WHERE ip=$ip >> gave:", \$ip_results;
-			warn Dumper $ip_playerids;
-			warn Dumper "length: ".length($ip_playerids)." divide 4:". $num;
-			warn Dumper \@player_id_list;
-			die();
-		}
-		
-		# Now check if the name is listed in the player database
-		my $count = 0;
-		my $pname = '';
-		$query_hndl->bind_col(1, \$pname);
-		
-		while ($query_hndl->fetch) {
-			if ( $pname eq $player ) {
-				#print "Found player name match in players table.\n";
-				$count++;
-			}
-		}
-		
-		$query_hndl->finish();
-		
-		if ($count) {
-			# We have seen this IP with this Name before.
-			print 'Welcome back: '. $player ."\n";
-		} else {
-			# No, the name is not listed in the players table for the ids given by this IP
-			# So, we have a new name for this IP.
-			# Does this name already exist in the players table?
-			if ($p_id_packed) {
-				# Yes, add this IP to the list of ips for that player
-				# and add that player id to the list of ids for this IP
-				$p_ip_list .= $ip_packed;
-				$ip_playerids .= $p_id_packed;
-				
-				$dbhandle->do('UPDATE `players` SET ips='.$dbhandle->quote($p_ip_list).' WHERE player_id='.$secondary_player_hash{$player}->{player_id})
-				or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
-				$dbhandle->do('UPDATE `ips` SET player_ids='.$dbhandle->quote($ip_playerids).' WHERE ip=INET_ATON("'. $ip .'")')
-				or die("Unable to execute query.\n". $dbhandle->errstr ."\n");	
-			} else {
-				# No, apparently our request to create a new player previously failed...
-				warn "Hmm.. The player should already exist by now.\nPerhaps the connection has been lost to the database?";
-			}
-		}
+		# The IP AND Player_ID are listed in the table
+		# - we have seen this IP with this Name before.
+		print 'Welcome back: '. $player ."\n";
 	} else {
-		# We have not seen that IP before...
+		# We have not seen that IP AND player name together before...
 		# Create a new entry in the ips table
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_txt,player_ids) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$dbhandle->quote($p_id_packed).')')
-		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
+		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$secondary_player_hash{$player}->{player_id}.',NOW('.$time.'))')
+			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
-	
-	# Done with these queries
 	$ip_qry_hndl->finish();
-	$name_qry_hndl->finish();
+
 	
 	# Add an entry to the 'rcon_log' table
 	$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (NOW('. $time .'),'.$secondary_player_hash{$player}->{player_id}.',INET_ATON("'. $ip .'"),'.$secondary_player_hash{$player}->{slot}.',1)')
-	or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
+		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 
-	# Now that all the database stuff is taken care of, lets copy over the information on the player into the main players hash
-	$main_player_hash{$player} = {};		# Lets make a key for them...
+	# Now that all the database stuff is taken care of, copy over the information on the player into the main players hash
+	$main_player_hash{$player} = {};		# Make a key for them...
 	
 	foreach (keys %{$secondary_player_hash{$player}} )		# ...and load it with all the information we have on them.
 		{ $main_player_hash{$player}->{$_} = $secondary_player_hash{$player}->{$_}; }
 	
-	# Remove them from the list of 'connecting players' if they are in that list, since they have now fully connected to the server
-	if (exists($connecting_players{$player})) { delete $connecting_players{$player}; }
+	# Remove them from the list of 'connecting players' [if they are in that list] since they have now fully connected to the server.
+	if (exists($connecting_players{$player})) {
+		delete $connecting_players{$player}; }
 }
 
 sub db_doPlayerStats() {
