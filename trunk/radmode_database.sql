@@ -56,7 +56,7 @@ CREATE  TABLE IF NOT EXISTS `rcon_db`.`current_players` (
   `slot_num` TINYINT UNSIGNED NOT NULL ,
   `score` SMALLINT NOT NULL ,
   `ping` SMALLINT UNSIGNED NOT NULL ,
-  `name` CHAR(144) NOT NULL ,
+  `name` CHAR(32) NOT NULL ,
   `ip` INT UNSIGNED NOT NULL ,
   `qport` SMALLINT UNSIGNED NOT NULL ,
   `rate` SMALLINT UNSIGNED NOT NULL ,
@@ -82,7 +82,7 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 -- -----------------------------------------------------
 CREATE  TABLE IF NOT EXISTS `rcon_db`.`players` (
   `player_id` INT UNSIGNED NOT NULL AUTO_INCREMENT ,
-  `name` VARCHAR(64) NOT NULL ,
+  `name` VARCHAR(32) NOT NULL ,
   `duration` BIGINT UNSIGNED NULL DEFAULT 0 ,
   `creation` DATETIME NULL ,
   PRIMARY KEY (`player_id`) )
