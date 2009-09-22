@@ -19,7 +19,7 @@ $db_port = 13390;
 $db_user = 'rconlogs';
 $db_pass = 'urtlogs';
 
-$db_name = 'rcon_db';
+$db_name = 'urt_rad';
 $db_table = '';
 
 
@@ -137,18 +137,17 @@ if (array_key_exists('status', $_REQUEST)) {
 function search_ip_addr($ip, $link)
 {
 	if ($ip && $link) {
-		$qry = 'SELECT * FROM `ips` WHERE `ip_txt` LIKE "';
 
 		$search_addr = str_replace("%", "\%", $ip);
 		$search_addr = str_replace("_", "\_", $search_addr);
 		$search_addr = str_replace("?", "_", $search_addr);
 		$search_addr = str_replace("*", "%", $search_addr);
-		$qry .= mysql_real_escape_string($search_addr, $link) . '" ORDER BY `ip`';
+
+		$qry = 'SELECT i.player_id, i.ip, i.ip_text, p.name, i.creation FROM ips i JOIN players p USING(player_id) WHERE i.ip_text LIKE "'. mysql_real_escape_string($search_addr, $link) . '" ORDER BY i.ip, i.player_id';
 
 		$results = mysql_query($qry, $link);
 
 		if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
-
 
 		$data = array();
 		$num_rows = mysql_num_rows($results);
@@ -158,28 +157,6 @@ function search_ip_addr($ip, $link)
 		}
 
 		mysql_free_result($results);
-	
-		// Convert & Replace the packed data string of player IDs to an array of ints
-		foreach ($data as &$row) {
-			$id_str = $row['player_ids'];
-			$length = strlen($id_str);
-			$num_ids = $length / 4;
-			$offset = $length % 4;
-			$ids = array();
-			$tmp = array();		// hack because PHP actually uses 'ordered maps' and NOT arrays.
-
-			if ($offset != 0 || $length == 0) {
-				return 'Error, problem with the database.'; }
-
-			for ($i=0; $i<$num_ids; $i++) {
-				$tmp = unpack("N", substr($id_str, $i*4, 4) );
-				$ids[] = $tmp[1];
-			}
-
-			$row['player_ids'] = $ids;
-			$row['player_names'] = player_ids_to_names($ids, $link);
-		}
-		unset($row);
 
 		$returnValue = array(
 			'rows'=>$num_rows,
@@ -196,18 +173,16 @@ function search_name($name, $link)
 {
 	if ($name && $link) {
 
-		$qry = 'SELECT * FROM `players` WHERE `name` LIKE "';
-
 		$search_name = str_replace("%", "\%", $name);
 		$search_name = str_replace("_", "\_", $search_name);
 		$search_name = str_replace("?", "_", $search_name);
 		$search_name = str_replace("*", "%", $search_name);
-		$qry .= mysql_real_escape_string($search_name, $link) . '" ORDER BY `player_id`';
 
+		$qry = 'SELECT p.player_id, p.name, p.duration, p.creation, i.ip, i.ip_text FROM players p JOIN ips i USING(player_id) WHERE p.name LIKE "'. mysql_real_escape_string($search_name, $link) .'" ORDER BY p.player_id, i.ip';
+		
 		$results = mysql_query($qry, $link);
 
 		if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
-
 
 		$data = array();
 		$num_rows = mysql_num_rows($results);
@@ -218,27 +193,6 @@ function search_name($name, $link)
 
 		mysql_free_result($results);
 	
-		foreach ($data as &$row) {
-			$ip_str = $row['ips'];
-			$length = strlen($ip_str);
-			$num_ips = $length / 4;
-			$offset = $length % 4;
-			$ips = array();
-			$tmp = array();		// hack because PHP actually uses 'ordered maps' and NOT arrays.
-
-			if ($offset != 0 || $length == 0) {
-				return 'Error, problem with the database.'; }
-
-			for ($i=0; $i<$num_ips; $i++) {
-				$tmp = unpack("N", substr($ip_str, $i*4, 4) );
-				$ips[] = long2ip($tmp[1]);			// convert to a human-readable address
-//				$ips[] = sprintf('%u', $tmp[1]);		// hack as PHP does not support unsigned ints
-			}
-
-			$row['ips'] = $ips;
-		}
-		unset($row);
-
 		$returnValue = array(
 			'rows'=>$num_rows,
 			'type'=>'name',
@@ -246,40 +200,6 @@ function search_name($name, $link)
 		);
 	
 		return json_encode($returnValue);
-	}
-	return false;
-}
-
-// Takes an array of numeric 'player_ids' and returns a JSON string of the co-responding player names
-// Example:
-// $ids = [1,2,3,4]
-// returns: "[\"Name_One\",\"Name Two\",\"NameNumberThree\",\"I Am Number Four\"]"
-function player_ids_to_names($ids, $link)
-{
-	if ($ids && $link) {
-	
-		$qry = 'SELECT `name` FROM `players` WHERE `player_id` IN (';
-		$tmp = '';
-
-		foreach ($ids as &$id) {
-			$tmp .= filter_var($id, FILTER_SANITIZE_NUMBER_INT) . ',';
-		}
-		
-		$qry .= rtrim($tmp, ',') . ')';
-
-		$results = mysql_query($qry, $link);
-
-		if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
-
-		$data = array();
-
-		while ( $row = mysql_fetch_row($results) ) {
-			$data[] = $row[0];
-		}
-
-		mysql_free_result($results);
-		
-		return json_encode($data);
 	}
 	return false;
 }
