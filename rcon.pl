@@ -35,7 +35,7 @@ select STDOUT; $| = 1; # make unbuffered
 my $db_server		= 'mysql';
 my $db_host 		= 'localhost';
 my $db_port		= '13390';
-my $db_database		= 'rcon_db';
+my $db_database		= 'urt_rad';
 my $db_user		= 'rconlogs';
 my $db_pass		= 'urtlogs';
 
@@ -62,7 +62,7 @@ my $log_lines_processed		= 0;
 my $log_bytes_processed		= 0;
 my $log_last_check		= 0;
 my $log_check_delay		= 25;
-my $last_update			= 0;
+my $last_update			= '';
 
 
 # ----- Globals -----
@@ -175,7 +175,7 @@ sub db_getStatus() {
 		$log_last_check = 0;
 		$last_update = time();
 		
-		$dbhandle->do('INSERT INTO `status` (backend_status,client_request,log_lines_processed,log_bytes_processed,log_last_check,last_update) VALUES ('."$backend_status, $client_request, $log_lines_processed, $log_bytes_processed, $log_last_check, NOW($last_update) )")
+		$dbhandle->do('INSERT INTO `status` (backend_status,client_request,log_lines_processed,log_bytes_processed,log_last_check,last_update) VALUES ('."$backend_status, $client_request, $log_lines_processed, $log_bytes_processed, $log_last_check, FROM_UNIXTIME($last_update) )")
 			or die('Unable to execute query.');
 	} else {
 		# Set the Global Status Variables
@@ -185,7 +185,7 @@ sub db_getStatus() {
 		$log_bytes_processed	= int(${$status}{log_bytes_processed}) || 0;
 		$log_last_check		= int(${$status}{log_last_check}) || 0;
 		#$log_check_delay	= int(${$status}{log_check_delay});
-		$last_update		= int(${$status}{last_update}) || 0;
+		$last_update		= ${$status}{last_update};
 	}
 	$status_query_hndl->finish();
 }
@@ -488,7 +488,7 @@ sub changeName($$$) {
 		# We have not seen this name before...
 		warn "New player name, adding to database...\n";
 		# Create a new entry in the players table
-		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.', 0, NOW('. $time .') )')
+		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.', 0, FROM_UNIXTIME('. $time .') )')
 		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 		my $name_qry2 = 'SELECT * FROM `players` WHERE name='. $name;
@@ -511,15 +511,15 @@ sub changeName($$$) {
 	$ips_qry_hndl->execute() or die("Unable to execute query.\n". $ips_qry_hndl->errstr . "\n");
 	my $ips_results = $ips_qry_hndl->fetchrow_arrayref();
 
-	if ($ips_results->rows > 1) {
+	if ($ips_qry_hndl->rows > 1) {
 		warn "-> Duplicate entries in the 'ips' table... ";
 		return;
-	} elsif ($ips_results->rows == 1) {
+	} elsif ($ips_qry_hndl->rows == 1) {
 		# Player has been seen with this ip before
 		# - nothing really to do..
 	} else {
 		# New ip for this player name
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),'.$ip.','.$player_id.',NOW('. $time .') )')
+		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$player_id.',FROM_UNIXTIME('. $time .') )')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
 	$ips_qry_hndl->finish();
@@ -566,7 +566,7 @@ sub newPlayer($$) {
 		# We have not seen this name before...
 		print 'New name, adding to database...'."\n";
 		# Create a new entry in the players table
-		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.',0,NOW('.$time.'))')
+		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.',0,FROM_UNIXTIME('.$time.'))')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 		# Now retrieve the player_id from the newly created entry
@@ -604,14 +604,14 @@ sub newPlayer($$) {
 	} else {
 		# We have not seen that IP AND player name together before...
 		# Create a new entry in the ips table
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$secondary_player_hash{$player}->{player_id}.',NOW('.$time.'))')
+		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$secondary_player_hash{$player}->{player_id}.',FROM_UNIXTIME('.$time.'))')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
 	$ip_qry_hndl->finish();
 
 	
 	# Add an entry to the 'rcon_log' table
-	$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (NOW('. $time .'),'.$secondary_player_hash{$player}->{player_id}.',INET_ATON("'. $ip .'"),'.$secondary_player_hash{$player}->{slot}.',1)')
+	$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (FROM_UNIXTIME('. $time .'),'.$secondary_player_hash{$player}->{player_id}.',INET_ATON("'. $ip .'"),'.$secondary_player_hash{$player}->{slot}.',1)')
 		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 
@@ -778,7 +778,7 @@ sub db_doPlayerStats() {
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 			
 			# Add an entry to the 'rcon_log' table
-			$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (NOW('. $time .'),'.$main_player_hash{$old}->{player_id}.',INET_ATON("'. $main_player_hash{$old}->{ip} .'"),'.$main_player_hash{$old}->{slot}.',0)')
+			$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (FROM_UNIXTIME('. $time .'),'.$main_player_hash{$old}->{player_id}.',INET_ATON("'. $main_player_hash{$old}->{ip} .'"),'.$main_player_hash{$old}->{slot}.',0)')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 			
 			delete $main_player_hash{$old};
