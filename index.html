@@ -66,7 +66,6 @@
 		margin: 2px;
 	}
 
-
 	p.error_small {
 		font-size:85%; margin-left:2em;
 	}
@@ -104,6 +103,12 @@
 	
 	#mainmenubar {
 		font-size: 100%;
+	}
+
+	span.small_button_font span.yui-button button {
+		font-size: 77%;
+		padding: 0 5px;
+		min-height: 1.8em;
 	}
 </style>
 
@@ -210,7 +215,7 @@ var aItemData = [
 	alert_panel.setBody('...');
 	alert_panel.render(document.body);
 
-	//Create a namepaced alert method
+	// Create a namepaced alert method
 	remoteInterface.alert = function(str) {
 		alert_panel.setBody(str);
 		alert_panel.cfg.setProperty('icon', YAHOO.widget.SimpleDialog.ICON_WARN);
@@ -234,7 +239,6 @@ var aItemData = [
 	oAboutPanel.render(document.body);
 
 	var oHelpPanel = new YAHOO.widget.Panel("help_panel", {
-
 			visible:false,
 			draggable:true,
 			dragOnly:true,
@@ -248,8 +252,8 @@ var aItemData = [
 
 	
 	var oOptionsPanel = new YAHOO.widget.Dialog("options_panel", {
-			width:'330px',
-			height:'260px',
+			width:'360px',
+			height:'275px',
 			visible:false,
 			draggable:true,
 			dragOnly:true,
@@ -280,8 +284,6 @@ var aItemData = [
 		oOptionsPanel.show();
 	};
 
-
-	
 	var fSearchRedrawTables = function() {
 		for (var i =0; i < remoteInterface.search_panels.length; i++) {
 			if (remoteInterface.search_panels[i].oSearchTable) {
@@ -290,19 +292,17 @@ var aItemData = [
 		}
 	};
 
-	var fColorNames = function(o) {
-		if (this) {
-			config.bColorizeNames = !config.bColorizeNames;
-			fSearchRedrawTables();
-		}
+	var fColorNames = function() {
+		config.bColorizeNames = !config.bColorizeNames;
+		fSearchRedrawTables();
 	};
-	var fConvertDuration = function(o) {
-		if (this) {
-			config.bConvertDuration = !config.bConvertDuration;
-			fSearchRedrawTables();
-		}
+	var fConvertDuration = function() {
+		config.bConvertDuration = !config.bConvertDuration;
+		fSearchRedrawTables();
 	};
 
+	// Hide() or Show() a column depending on boolean bToggle.
+	// ( bToggle = true -> Column is Hidden )
 	var fToggleColumn = function(bToggle, sColumnId) {
 		if (sColumnId) {
 			for (var i=0; i < remoteInterface.search_panels.length; i++) {
@@ -327,33 +327,35 @@ var aItemData = [
 		}
 	};
 
-	var fShowIds = function(o) {
-		if (this) {
-			config.bHideIds = !config.bHideIds;
-			fToggleColumn(config.bHideIds, 'player_id');
-			fSearchRedrawTables();
-		}
+	var fShowIds = function() {
+		config.bHideIds = !config.bHideIds;
+		fToggleColumn(config.bHideIds, 'player_id');
+		fSearchRedrawTables();
 	};
-	var fShowNumericIps = function(o) {
-		if (this) {
-			config.bHideNumericIps = !config.bHideNumericIps;
-			fToggleColumn(config.bHideNumericIps, 'ip');
-			fSearchRedrawTables();
-		}
+	var fShowNumericIps = function() {
+		config.bHideNumericIps = !config.bHideNumericIps;
+		fToggleColumn(config.bHideNumericIps, 'ip');
+		fSearchRedrawTables();
 	};
-	var fShowCreation = function(o) {
-		if (this) {
-			config.bHideCreationDate = !config.bHideCreationDate;
-			fToggleColumn(config.bHideCreationDate, 'creation');
+	var fShowCreation = function() {
+		config.bHideCreationDate = !config.bHideCreationDate;
+		fToggleColumn(config.bHideCreationDate, 'creation');
+		fSearchRedrawTables();
+	};
+
+	var fUpdateDateTime = function() {
+		var temp = document.getElementById('config_datetimeformat');
+		if (temp) {
+			config.sDatetimeFormat = temp.value;
 			fSearchRedrawTables();
+		} else {
+			remoteInterface.alert("Error - missing format string.");
 		}
 	};
 
-	var fUpdateDateTime = function(o) {
-		var temp = document.getElementById('config_datetimeformat');
-		config.sDatetimeFormat = temp.value;
-		fSearchRedrawTables();
-	};
+	var oApplyDateTimeBtn = new YAHOO.widget.Button({ label:"Apply", id:"config_applydatetime", container:"config_applybtn", type: "button" });
+	oApplyDateTimeBtn.on("click", fUpdateDateTime)
+
 
 
 	
@@ -369,7 +371,7 @@ var aItemData = [
 		} );
 	oStatusPanel.setHeader("Status");
 	oStatusPanel.setBody("This panel contains information on the backend and the server.<br><br><div id='status_tabs'><\/div>");
-	oStatusPanel.setFooter("<div id='status_refresh'><\/div>");
+	oStatusPanel.setFooter("<span id='status_refresh'><\/span>");
 	oStatusPanel.render(document.body);
 
 	var oTabView = new YAHOO.widget.TabView();
@@ -498,7 +500,7 @@ var aItemData = [
 		var request = YAHOO.util.Connect.asyncRequest('GET', sQuery, status_callback, null);
 	};
 	
-	var oStatusRefresh = new YAHOO.widget.Button({ label:"Refresh", id:"statusupdate", container:"status_refresh" });
+	var oStatusRefresh = new YAHOO.widget.Button({ label:"Refresh", id:"statusupdate", container:"status_refresh", type: "button" });
 	oStatusRefresh.on("click", fUpdateStatus);
 	
 	
@@ -507,7 +509,7 @@ var aItemData = [
 	var handleGenericCancel = function(o) { this.cancel(); };
 
 	
-	var handleServerCfgApply = function() {
+	var handleServerCfgApply = function(o) {
 		var ans = confirm("Are you sure you want to change the server config?");
 		if ( ans ) {
 			this.submit();
@@ -515,19 +517,19 @@ var aItemData = [
 			this.cancel();
 		}
 	};
-	var oServerCfgDlg = new YAHOO.widget.Dialog("server_config",
-			{	width: "325px",
-				fixedcenter: true,
-				visible:false,
-				draggable:true,
-				dragOnly:true,
-				close:true,
-				underlay:"Shadow",
-				zIndex: 3,
-				constraintoviewport: true,
-				buttons: [ { text: "Apply", handler: handleServerCfgApply }, { text: "Cancel", handler: handleGenericCancel, isDefault: true } ]
-			} );
-	oServerCfgDlg.validate = function() {
+	var oServerCfgDlg = new YAHOO.widget.Dialog("server_config", {
+			width: "325px",
+			fixedcenter: true,
+			visible:false,
+			draggable:true,
+			dragOnly:true,
+			close:true,
+			underlay:"Shadow",
+			zIndex: 3,
+			constraintoviewport: true,
+			buttons: [ { text: "Apply", handler: handleServerCfgApply }, { text: "Cancel", handler: handleGenericCancel, isDefault: true } ]
+		} );
+	oServerCfgDlg.validate = function(o) {
 		var data = this.getData();
 		if (data.ip == "" ) {
 			alert("Please enter an IP address.");
@@ -553,19 +555,19 @@ var aItemData = [
 	oServerCfgDlg.render(document.body);
 
 
-	var oServerRconPwDlg = new YAHOO.widget.Dialog("server_rcon_pw",
-			{	width: "305px",
-				fixedcenter: true,
-				visible:false,
-				draggable:true,
-				dragOnly:true,
-				close:true,
-				underlay:"Shadow",
-				zIndex: 3,
-				constraintoviewport: true,
-				buttons: [ { text: "Apply", handler:function(){this.submit();} }, { text: "Cancel", handler: handleGenericCancel, isDefault: true } ]
-			} );
-	oServerRconPwDlg.validate = function() {
+	var oServerRconPwDlg = new YAHOO.widget.Dialog("server_rcon_pw", {
+			width: "305px",
+			fixedcenter: true,
+			visible:false,
+			draggable:true,
+			dragOnly:true,
+			close:true,
+			underlay:"Shadow",
+			zIndex: 3,
+			constraintoviewport: true,
+			buttons: [ { text: "Apply", handler:function(){this.submit();} }, { text: "Cancel", handler: handleGenericCancel, isDefault: true } ]
+		} );
+	oServerRconPwDlg.validate = function(o) {
 		var data = this.getData();
 		if (data.pw == "") {
 			alert("Please enter a password.");
@@ -604,7 +606,7 @@ var aItemData = [
 		
 			try { var search_data = YAHOO.lang.JSON.parse(o.responseText); }
 			catch (e) { remoteInterface.alert('An error occured while parsing the reply from the server...'); }
-		
+
 			var id_name = "search_panel_" + o.tId;
 			var id_table = "search_table_" + o.tId;
 			var id_page = "search_paginator_" + o.tId;
@@ -634,16 +636,53 @@ var aItemData = [
 					previousPageLinkLabel: "<",
 				});
 			
+			/* Table column configs */
+			var aSearchNameTableColums = [
+				{ key:"player_id", label:"ID", sortable:true, hidden: config.bHideIds },
+				{ key:"name", label:"Name", formatter: formatNameColors },
+				{ key:"ip", label:"IP Address", sortable:true, hidden: config.bHideNumericIps },
+				{ key:"ip_text", label:"IP Address"},
+				{ key:"duration", label:"Duration", formatter: formatDuration, sortable:true },
+				{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
+			];
+			var oSearchNameSchema = {
+				resultsList: 'data',
+				fields:[{key:'player_id', parser:'number'},
+					{key:'name'},
+					{key:'duration', parser:'number'},
+					{key:'creation'},
+					{key:'ip', parser:'number'},
+					{key:'ip_text'} ],
+				metaFields: { rows: 'rows' }
+			};
+			var aSearchIpTableColums = [
+				{ key:"player_id", label:"Player ID", sortable:true, hidden: config.bHideIds },
+				{ key:"ip", label:"IP", sortable:true, hidden: config.bHideNumericIps },
+				{ key:"ip_text", label:"IP Address" },
+				{ key:"name", label:"Player Name", formatter: formatNameColors },
+				{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
+			];
+			var oSearchIpSchema = {
+				resultsList: 'data',
+				fields:[{key:'player_id', parser:'number'},
+					{key:'ip', parser:'number'},
+					{key:'ip_text'},
+					{key:'name'},
+					{key:'creation'} ],
+				metaFields: { rows: 'rows' }
+			};
+
 			var oSearchNameTableConfigs = {
-					sortedBy: { key:'player_id', dir: YAHOO.widget.DataTable.CLASS_ASC },
-					selectionMode: 'single',
-					paginator: temp.oSearchPaginator
+				sortedBy: { key:'player_id', dir: YAHOO.widget.DataTable.CLASS_ASC },
+				selectionMode: 'single',
+				paginator: temp.oSearchPaginator
 			};
 			var oSearchIpTableConfigs = {
-					sortedBy: { key:'ip', dir: YAHOO.widget.DataTable.CLASS_ASC },
-					selectionMode: 'single',
-					paginator: temp.oSearchPaginator
+				sortedBy: { key:'ip', dir: YAHOO.widget.DataTable.CLASS_ASC },
+				selectionMode: 'single',
+				paginator: temp.oSearchPaginator
 			};
+			/* End table configs*/
 			
 			temp.oSearchDataSource = new YAHOO.util.LocalDataSource( o.responseText );
 			temp.oSearchDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
@@ -666,7 +705,7 @@ var aItemData = [
 		fSearchGarbageCollect();
 	};
 
-	/* Variables used by the Search Panel Tables */
+	/* Functions used by the Search Panel Tables */
 	var formatNameColors = function(elCell, oRecord, oColumn, oData) {
 		var list = oData;
 		if (config.bColorizeNames) {
@@ -713,7 +752,7 @@ var aItemData = [
 			var oDate = new Date(oData);
 			elCell.innerHTML = YAHOO.util.Date.format( oDate, {format: config.sDatetimeFormat} );
 		} else {
-			elCell.innerHTML = 'None';
+			elCell.innerHTML = 'No Data';
 		}
 	};
 	var formatList = function(elCell, oRecord, oColumn, oData) {
@@ -727,26 +766,7 @@ var aItemData = [
 			elCell.innerHTML = str.substring(0, str.length - 2);
 		}
 	};
-	var aSearchNameTableColums = [
-			{ key:"player_id", label:"ID", sortable:true, hidden: config.bHideIds },
-			{ key:"name", label:"Name", formatter: formatNameColors },
-			{ key:"ip", label:"IP Address", sortable:true, hidden: config.bHideNumericIps },
-			{ key:"ip_text", label:"IP Address"},
-			{ key:"duration", label:"Duration", formatter: formatDuration, sortable:true },
-			{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
-		];
-	var oSearchNameSchema = {
-			resultsList: 'data',
-			fields: [
-				{key:'player_id', parser:'number'},
-				{key:'name'},
-				{key:'duration', parser:'number'},
-				{key:'creation'},
-				{key:'ip', parser:'number'},
-				{key:'ip_text'}
-			],
-			metaFields: { rows: 'rows' }
-		};
+
 	var formatNameList = function(elCell, oRecord, oColumn, oData) {
 		var list = oData.slice(1, oData.length - 1);
 		if (bColorizeNames) {
@@ -765,35 +785,14 @@ var aItemData = [
 		}
 		elCell.innerHTML = list;
 	};
-	var aSearchIpTableColums = [
-			{ key:"player_id", label:"Player ID", sortable:true, hidden: config.bHideIds },
-			{ key:"ip", label:"IP", sortable:true, hidden: config.bHideNumericIps },
-			{ key:"ip_text", label:"IP Address" },
-			{ key:"name", label:"Player Name", formatter: formatNameColors },
-			{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
-		];
-	var oSearchIpSchema = {
-			resultsList: 'data',
-			fields: [
-				{key:'player_id', parser:'number'},
-				{key:'ip', parser:'number'},
-				{key:'ip_text'},
-				{key:'name'},
-				{key:'creation'}
-			],
-			metaFields: { rows: 'rows' }
-		};
-	/* End of Search Panel Variables */
-	
-	
-	
+	/* End of Search Panel Functions */
+
 
 	var msgSearchError = function() {
 		remoteInterface.alert("There was an error preforming the search.");
 	};
-
 	
-	var handleSubmitName = function() { this.submit(); };
+	var handleSubmitName = function(o) { this.submit(); };
 	var oSearchNameDlg = new YAHOO.widget.Dialog("search_name",
 		{	width: "350px",
 			visible: false,
@@ -806,7 +805,7 @@ var aItemData = [
 			constraintoviewport: true,
 			buttons: [ { text: "Search", handler: handleSubmitName, isDefault: true }, { text: "Close", handler: handleGenericCancel } ]
 		} );
-	oSearchNameDlg.validate = function() {
+	oSearchNameDlg.validate = function(o) {
 		var data = this.getData();
 		if (data && data.name_text == "") {
 			alert("Please enter some text to search for..");
@@ -820,10 +819,9 @@ var aItemData = [
 	oSearchNameDlg.render(document.body);
 
 
-
-	var handleSubmitIp = function() { this.submit(); };
-	var oSearchIpDlg = new YAHOO.widget.Dialog("search_ip",
-		{	width: "275px",
+	var handleSubmitIp = function(o) { this.submit(); };
+	var oSearchIpDlg = new YAHOO.widget.Dialog("search_ip", {
+			width: "275px",
 			visible: false,
 			draggable: true,
 			dragOnly: true,
@@ -834,7 +832,7 @@ var aItemData = [
 			constraintoviewport: true,
 			buttons: [ { text:"Search", handler: handleSubmitIp }, { text:"Close", handler: handleGenericCancel, isDefault: true } ]
 		} );
-	oSearchIpDlg.validate = function() {
+	oSearchIpDlg.validate = function(o) {
 		var data = this.getData();
 		if (data && data.ip_text == "") {
 			alert("Please enter something to search for..");
@@ -877,18 +875,14 @@ var aItemData = [
 	oPlayerDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
 	oPlayerDataSource.responseSchema = {
 		resultsList: 'data',
-		fields: [
-			{key:'slot_num', parser:'number'},
+		fields:[{key:'slot_num', parser:'number'},
 			{key:'score', parser:'number'},
 			{key:'ping', parser:'number'},
 			{key:'name'},
 			{key:'ip', parser: long2ip },
 			{key:'qport', parser:'number'},
-			{key:'rate', parser:'number'}
-		],
-		metaFields: {
-			rows: 'rows'
-		}
+			{key:'rate', parser:'number'} ],
+		metaFields: { rows: 'rows' }
 	};
 
 	var oPlayerTableConfigs = {
@@ -904,10 +898,10 @@ var aItemData = [
 		scope: oPlayerTable
 	};
 	
-	oPlayerDataSource.setInterval(3000, null, PlayerDataCallback);
-	// If Possible: only poll backend if the playerlist panel is visible...
+	oPlayerDataSource.setInterval(4000, null, PlayerDataCallback);
+	// TODO: If Possible: only poll backend if the playerlist panel is visible...
 
-
+	// Listeners for the MenuBar
 	YAHOO.util.Event.addListener("about", "click", oAboutPanel.show, oAboutPanel, true);
 	YAHOO.util.Event.addListener("help_reference", "click", oHelpPanel.show, oHelpPanel, true);
 	YAHOO.util.Event.addListener("options", "click", fLoadOptionsPanel);
@@ -924,9 +918,8 @@ var aItemData = [
 	YAHOO.util.Event.addListener("config_showplayerids", "click", fShowIds);
 	YAHOO.util.Event.addListener("config_shownumericips", "click", fShowNumericIps);
 	YAHOO.util.Event.addListener("config_showcreation", "click", fShowCreation);
-	YAHOO.util.Event.addListener("config_datetimeformat", "click", fUpdateDateTime);
-	
-	
+
+	// Listeners for Keyboard shortcuts
 	var key1 = new YAHOO.util.KeyListener(document, { alt:true, keys:90}, {fn:oSearchNameDlg.show, scope:oSearchNameDlg, correctScope:true});
 	var key2 = new YAHOO.util.KeyListener(document, { alt:true, keys:88}, {fn:oSearchIpDlg.show, scope:oSearchIpDlg, correctScope:true});
 	var key3 = new YAHOO.util.KeyListener(document, { alt:true, keys:67}, {fn:oCurrentPlayers.show, scope:oCurrentPlayers, correctScope:true});
@@ -938,7 +931,7 @@ var aItemData = [
 
 
 
-/*	Initialize and render when the DOM is ready to be scripted.	*/
+/*** Initialize and render when the DOM is ready to be scripted. ***/
 YAHOO.util.Event.onDOMReady( remoteInterface.init );
 
 //-->
@@ -1003,8 +996,9 @@ YAHOO.util.Event.onDOMReady( remoteInterface.init );
 					<label for="config_shownumericips">Show Numeric IPs</label><br>
 					<input type="checkbox" id="config_showcreation">
 					<label for="config_showcreation">Show Creation Date/Time</label><br>
-					<label for="config_datetimeformat">Date/Time Format</label>
-					<input type="text" id="config_datetimeformat" value="" size="10" maxlength="32" alt="Date/time format string" title="Date/time format string">
+					<label for="config_datetimeformat">Date Format</label>
+					<input type="text" id="config_datetimeformat" class="small_edit_box" value="" size="10" maxlength="32" alt="Date/time format string" title="Date/time format string">
+					<span id="config_applybtn" class="small_button_font"></span>
 				</div>
 			</fieldset>
 		</div>
@@ -1012,8 +1006,7 @@ YAHOO.util.Event.onDOMReady( remoteInterface.init );
 	
 	<div id="current_players" title="Current Players">
 		<div class="hd">Current Players</div>
-		<div class="bd">
-		</div>
+		<div class="bd"></div>
 	</div>
 	
 	<div id="server_rcon_pw" title="Server RCON Password">
