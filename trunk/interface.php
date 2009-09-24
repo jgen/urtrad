@@ -18,9 +18,7 @@ $db_host = 'localhost';
 $db_port = 13390;
 $db_user = 'rconlogs';
 $db_pass = 'urtlogs';
-
 $db_name = 'urt_rad';
-$db_table = '';
 
 
 $qry = '';
@@ -36,7 +34,6 @@ if (!mysql_select_db( mysql_real_escape_string($db_name) ) ) {
 	echo "Unable to select database.\n\n";
 	die('Error: ' . mysql_errorno . ' - ' . mysql_error());
 }
-
 
 
 
@@ -143,7 +140,7 @@ function search_ip_addr($ip, $link)
 		$search_addr = str_replace("?", "_", $search_addr);
 		$search_addr = str_replace("*", "%", $search_addr);
 
-		$qry = 'SELECT i.player_id, i.ip, i.ip_text, p.name, i.creation FROM ips i JOIN players p USING(player_id) WHERE i.ip_text LIKE "'. mysql_real_escape_string($search_addr, $link) . '" ORDER BY i.ip, i.player_id';
+		$qry = 'SELECT i.player_id, i.ip, i.ip_text, p.name, date_format(i.creation, "%Y %m %d %T") AS creation FROM ips i JOIN players p USING(player_id) WHERE i.ip_text LIKE "'. mysql_real_escape_string($search_addr, $link) . '" ORDER BY i.ip, i.player_id';
 
 		$results = mysql_query($qry, $link);
 
@@ -178,7 +175,7 @@ function search_name($name, $link)
 		$search_name = str_replace("?", "_", $search_name);
 		$search_name = str_replace("*", "%", $search_name);
 
-		$qry = 'SELECT p.player_id, p.name, p.duration, p.creation, i.ip, i.ip_text FROM players p JOIN ips i USING(player_id) WHERE p.name LIKE "'. mysql_real_escape_string($search_name, $link) .'" ORDER BY p.player_id, i.ip';
+		$qry = 'SELECT p.player_id, p.name, p.duration, date_format(p.creation, "%Y %m %d %T") AS creation, i.ip, i.ip_text FROM players p JOIN ips i USING(player_id) WHERE p.name LIKE "'. mysql_real_escape_string($search_name, $link) .'" ORDER BY p.player_id, i.ip';
 		
 		$results = mysql_query($qry, $link);
 

@@ -6,13 +6,13 @@
 	<meta http-equiv="pragma" content="no-cache">
 	<meta name="googlebot" content="noarchive">
 	<meta name="robots" content="none">
-	<meta name="author" content="Jeff Genovy (jgen)">
+	<meta name="author" content="jgen">
 	<meta name="version" content="0.1">
 	<meta name="description" content="A remote interface for Urban Terror 4.1 servers">
 	<title>Remote Interface</title>
 <!--
   Remote Interface (for Urban Terror)
-  Author: Jeff Genovy (jgen)
+  Author: jgen
   Date: August 2009
   [BSD Licensed]
 
@@ -117,25 +117,29 @@ Array.prototype.remove = function(from, to) {
   return this.push.apply(this, rest);
 };
 
+
 /* Remote Interface for Urban Terror by jgen */
 
-YAHOO.namespace("remoteInterface");
+var remoteInterface = {};
 
-var ri = YAHOO.remoteInterface;
+remoteInterface.search_panels = new Array();
 
-ri.search_panels = new Array();
+remoteInterface.init = function() {
 
-ri.init = function() {
+// Configuration Options are wrapped in an object.
 
+var config = new Object();
 
-var sUrlBase = 'interface.php';
+config.sUrlBase = 'interface.php';
 
-var bColorizeNames = false;
-var bConvertDuration = true;
-var bHideIds = true;
-var bHideNumericIps = true;
+config.bColorizeNames = false;
+config.bConvertDuration = true;
+config.bHideIds = true;
+config.bHideNumericIps = true;
+config.bHideCreationDate = true;
+config.sDatetimeFormat = '%D %R';
 
-
+// Menu setup
 var aItemData = [
 	{
 		text: "Main",
@@ -207,7 +211,7 @@ var aItemData = [
 	alert_panel.render(document.body);
 
 	//Create a namepaced alert method
-	ri.alert = function(str) {
+	remoteInterface.alert = function(str) {
 		alert_panel.setBody(str);
 		alert_panel.cfg.setProperty('icon', YAHOO.widget.SimpleDialog.ICON_WARN);
 		alert_panel.bringToTop();
@@ -244,8 +248,8 @@ var aItemData = [
 
 	
 	var oOptionsPanel = new YAHOO.widget.Dialog("options_panel", {
-			width:'325px',
-			height:'230px',
+			width:'330px',
+			height:'260px',
 			visible:false,
 			draggable:true,
 			dragOnly:true,
@@ -258,97 +262,100 @@ var aItemData = [
 		} );
 	oOptionsPanel.render(document.body);
 	
-	
+	var fLoadOptionsPanel = function() {
+		var temp;
+		temp = document.getElementById('config_colornames');
+		temp.checked = config.bColorizeNames;
+		temp = document.getElementById('config_convertduration');
+		temp.checked = config.bConvertDuration;
+		temp = document.getElementById('config_showplayerids');
+		temp.checked = !config.bHideIds;
+		temp = document.getElementById('config_shownumericips');
+		temp.checked = !config.bHideNumericIps;
+		temp = document.getElementById('config_showcreation');
+		temp.checked = !config.bHideCreationDate;
+		temp = document.getElementById('config_datetimeformat');
+		temp.value = config.sDatetimeFormat;
+
+		oOptionsPanel.show();
+	};
+
+
 	
 	var fSearchRedrawTables = function() {
-		for (var i =0; i < ri.search_panels.length; i++) {
-			if (ri.search_panels[i].oSearchTable) {
-				ri.search_panels[i].oSearchTable.render();
+		for (var i =0; i < remoteInterface.search_panels.length; i++) {
+			if (remoteInterface.search_panels[i].oSearchTable) {
+				remoteInterface.search_panels[i].oSearchTable.render();
 			}
 		}
 	};
 
 	var fColorNames = function(o) {
 		if (this) {
-			bColorizeNames = !bColorizeNames;
+			config.bColorizeNames = !config.bColorizeNames;
 			fSearchRedrawTables();
 		}
 	};
 	var fConvertDuration = function(o) {
 		if (this) {
-			bConvertDuration = !bConvertDuration;
+			config.bConvertDuration = !config.bConvertDuration;
 			fSearchRedrawTables();
 		}
 	};
-	var fShowIds = function(o) {
-		if (this) {
-			bHideIds = !bHideIds;
 
-			for (var i=0; i < ri.search_panels.length; i++) {
-				if (ri.search_panels[i].oSearchTable) {
-					var column1 = ri.search_panels[i].oSearchTable.getColumn('player_ids');
-					var column2 = ri.search_panels[i].oSearchTable.getColumn('player_id');
+	var fToggleColumn = function(bToggle, sColumnId) {
+		if (sColumnId) {
+			for (var i=0; i < remoteInterface.search_panels.length; i++) {
+				if (remoteInterface.search_panels[i].oSearchTable) {
+					var column1 = remoteInterface.search_panels[i].oSearchTable.getColumn(sColumnId);
 					
 					if (column1) {
-						if (bHideIds) {
-							ri.search_panels[i].oSearchTable.hideColumn(column1);
+						if (bToggle) {
+							remoteInterface.search_panels[i].oSearchTable.hideColumn(column1);
 						} else {
-							ri.search_panels[i].oSearchTable.showColumn(column1);
+							remoteInterface.search_panels[i].oSearchTable.showColumn(column1);
 						}
 					}
-					if (column2) {
-						if (bHideIds) {
-							ri.search_panels[i].oSearchTable.hideColumn(column2);
-						} else {
-							ri.search_panels[i].oSearchTable.showColumn(column2);
-						}
-					}
-				}
-			}
-			
-			for (var k=0; k < aSearchIpTableColums.length; k++) {
-				if (aSearchIpTableColums[k].key == 'player_ids') {
-					aSearchIpTableColums[k].hidden = bHideIds;
 				}
 			}
 
 			for (var k=0; k < aSearchNameTableColums.length; k++) {
-				if (aSearchNameTableColums[k].key == 'player_id') {
-					aSearchNameTableColums[k].hidden = bHideIds;
+				if (aSearchNameTableColums[k].key == sColumnId) {
+					aSearchNameTableColums[k].hidden = bToggle;
 				}
 			}
+		}
+	};
 
+	var fShowIds = function(o) {
+		if (this) {
+			config.bHideIds = !config.bHideIds;
+			fToggleColumn(config.bHideIds, 'player_id');
 			fSearchRedrawTables();
 		}
 	};
 	var fShowNumericIps = function(o) {
 		if (this) {
-			bHideNumericIps = !bHideNumericIps;
-			
-			for (var i=0; i < ri.search_panels.length; i++) {
-				if (ri.search_panels[i].oSearchTable) {
-					var column1 = ri.search_panels[i].oSearchTable.getColumn('ip');
-					
-					if (column1) {
-						if (bHideNumericIps) {
-							ri.search_panels[i].oSearchTable.hideColumn(column1);
-						} else {
-							ri.search_panels[i].oSearchTable.showColumn(column1);
-						}
-					}
-				}
-			}
-			
-			for (var k=0; k < aSearchIpTableColums.length; k++) {
-				if (aSearchIpTableColums[k].key == 'ip') {
-					aSearchIpTableColums[k].hidden = bHideNumericIps;
-				}
-			}
-			
+			config.bHideNumericIps = !config.bHideNumericIps;
+			fToggleColumn(config.bHideNumericIps, 'ip');
 			fSearchRedrawTables();
 		}
 	};
-	
+	var fShowCreation = function(o) {
+		if (this) {
+			config.bHideCreationDate = !config.bHideCreationDate;
+			fToggleColumn(config.bHideCreationDate, 'creation');
+			fSearchRedrawTables();
+		}
+	};
+
+	var fUpdateDateTime = function(o) {
+		var temp = document.getElementById('config_datetimeformat');
+		config.sDatetimeFormat = temp.value;
+		fSearchRedrawTables();
+	};
+
+
 	
 	var oStatusPanel = new YAHOO.widget.Panel("status_panel", {
 			width:"430px",
@@ -374,13 +381,13 @@ var aItemData = [
 	var fUpdateStatus = function() {
 		var back_tab = document.getElementById('status_backend_tab');
 		var serv_tab = document.getElementById('status_server_tab');
-		var sQuery = sUrlBase + '?status';
+		var sQuery = config.sUrlBase + '?status';
 		var tmp_str = '';
 				
 		var hdl_successful = function(o) {
 			if (o.responseText !== undefined) {
 				try { var status_data = YAHOO.lang.JSON.parse(o.responseText); }
-				catch (e) { ri.alert('An error occured while parsing the reply from the server...'); }
+				catch (e) { remoteInterface.alert('An error occured while parsing the reply from the server...'); }
 				
 				var status = parseInt(status_data.backend.backend_status, 10);
 				var msg = '';
@@ -465,7 +472,7 @@ var aItemData = [
 					return true;
 				}
 			}
-			ri.alert('The server response was invalid.');
+			remoteInterface.alert('The server response was invalid.');
 			return false;
 		};
 		
@@ -477,7 +484,7 @@ var aItemData = [
 				tmp_str += "Status code message: "+ o.statusText +"<\/p>";
 				back_tab.innerHTML = tmp_str;
 			} else {
-				ri.alert('The server response was invalid.');
+				remoteInterface.alert('The server response was invalid.');
 			}
 		};
 		
@@ -536,11 +543,11 @@ var aItemData = [
 		return false;
 	};
 	oServerCfgDlg.callback.success = function(o) {
-		ri.alert("Successfully updated the server config.");
+		remoteInterface.alert("Successfully updated the server config.");
 		alert( YAHOO.lang.dump(o) );
 	};
 	oServerCfgDlg.callback.failure = function(o) {
-		ri.alert("Failed to update the server config.");
+		remoteInterface.alert("Failed to update the server config.");
 		alert( YAHOO.lang.dump(o) );
 	};
 	oServerCfgDlg.render(document.body);
@@ -568,24 +575,24 @@ var aItemData = [
 		}
 	};
 	oServerRconPwDlg.callback.success = function(o) {
-		ri.alert("Updated the rcon password.");
+		remoteInterface.alert("Updated the rcon password.");
 		alert( YAHOO.lang.dump(o) );
 	};
 	oServerRconPwDlg.callback.failure = function(o) {
-		ri.alert("Failed to update the rcon password");
+		remoteInterface.alert("Failed to update the rcon password");
 		alert( YAHOO.lang.dump(o) );
 	};
 	oServerRconPwDlg.render(document.body);
 
 	
 	var fSearchGarbageCollect = function() {
-		for (var i =0; i < ri.search_panels.length; i++) {
-			if (ri.search_panels[i] && ri.search_panels[i].cfg.config.visible.value == false) {
-				if (ri.search_panels[i].oSearchTable) {
-					ri.search_panels[i].oSearchTable.destroy();
+		for (var i =0; i < remoteInterface.search_panels.length; i++) {
+			if (remoteInterface.search_panels[i] && remoteInterface.search_panels[i].cfg.config.visible.value == false) {
+				if (remoteInterface.search_panels[i].oSearchTable) {
+					remoteInterface.search_panels[i].oSearchTable.destroy();
 				}
-				ri.search_panels[i].destroy();
-				ri.search_panels.remove(i);
+				remoteInterface.search_panels[i].destroy();
+				remoteInterface.search_panels.remove(i);
 				i--;
 			}
 		}
@@ -596,7 +603,7 @@ var aItemData = [
 		if (o && o.responseText !== undefined) {
 		
 			try { var search_data = YAHOO.lang.JSON.parse(o.responseText); }
-			catch (e) { ri.alert('An error occured while parsing the reply from the server...'); }
+			catch (e) { remoteInterface.alert('An error occured while parsing the reply from the server...'); }
 		
 			var id_name = "search_panel_" + o.tId;
 			var id_table = "search_table_" + o.tId;
@@ -648,13 +655,13 @@ var aItemData = [
 				temp.oSearchDataSource.responseSchema = oSearchIpSchema;
 				temp.oSearchTable = new YAHOO.widget.DataTable( id_table, aSearchIpTableColums, temp.oSearchDataSource, oSearchIpTableConfigs);
 			} else {
-				ri.alert('The server response is the wrong type.');
+				remoteInterface.alert('The server response is the wrong type.');
 			}
 				
-			ri.search_panels.push(temp);
+			remoteInterface.search_panels.push(temp);
 			temp.show();
 		} else {
-			ri.alert('The server response was invalid.');
+			remoteInterface.alert('The server response was invalid.');
 		}
 		fSearchGarbageCollect();
 	};
@@ -662,7 +669,7 @@ var aItemData = [
 	/* Variables used by the Search Panel Tables */
 	var formatNameColors = function(elCell, oRecord, oColumn, oData) {
 		var list = oData;
-		if (bColorizeNames) {
+		if (config.bColorizeNames) {
 			list = list.replace(/\^0/g, "<font color='#000000'>");
 			list = list.replace(/\^1/g, "<font color='#FF0000'>");
 			list = list.replace(/\^2/g, "<font color='#00FF00'>");
@@ -675,7 +682,7 @@ var aItemData = [
 		elCell.innerHTML = list;
 	};
 	var formatDuration = function(elCell, oRecord, oColumn, oData) {
-		if (bConvertDuration) {
+		if (config.bConvertDuration) {
 			if (oData > 86400) {
 				var days = Math.floor(oData / 86400);
 				var hr = Math.floor((oData % 86400) / 3600);
@@ -701,6 +708,14 @@ var aItemData = [
 			elCell.innerHTML = oData;
 		}
 	};
+	var formatDateTime = function(elCell, oRecord, oColumn, oData) {
+		if (oData) {
+			var oDate = new Date(oData);
+			elCell.innerHTML = YAHOO.util.Date.format( oDate, {format: config.sDatetimeFormat} );
+		} else {
+			elCell.innerHTML = 'None';
+		}
+	};
 	var formatList = function(elCell, oRecord, oColumn, oData) {
 		if (oData) {
 			var str = oData.toString();
@@ -713,24 +728,24 @@ var aItemData = [
 		}
 	};
 	var aSearchNameTableColums = [
-			{ key:"player_id", label:"ID", sortable:true, hidden:bHideIds },
+			{ key:"player_id", label:"ID", sortable:true, hidden: config.bHideIds },
 			{ key:"name", label:"Name", formatter: formatNameColors },
-			{ key:"ips", label:"IP Addresses", formatter: formatList },
-			{ key:"guids", label:"GUIDs", formatter: formatList },
-			{ key:"duration", label:"Duration", formatter: formatDuration, sortable:true }
+			{ key:"ip", label:"IP Address", sortable:true, hidden: config.bHideNumericIps },
+			{ key:"ip_text", label:"IP Address"},
+			{ key:"duration", label:"Duration", formatter: formatDuration, sortable:true },
+			{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
 		];
 	var oSearchNameSchema = {
 			resultsList: 'data',
 			fields: [
 				{key:'player_id', parser:'number'},
 				{key:'name'},
-				{key:'ips' },
-				{key:'guids'},
-				{key:'duration', parser:'number'}
+				{key:'duration', parser:'number'},
+				{key:'creation'},
+				{key:'ip', parser:'number'},
+				{key:'ip_text'}
 			],
-			metaFields: {
-				rows: 'rows'
-			}
+			metaFields: { rows: 'rows' }
 		};
 	var formatNameList = function(elCell, oRecord, oColumn, oData) {
 		var list = oData.slice(1, oData.length - 1);
@@ -738,7 +753,7 @@ var aItemData = [
 			//list = '<span style="background-color: #AAAAAA;">' + list;
 			list = list.replace(/\^0/g, "<font color='#000000'>");
 			list = list.replace(/","/g, "<font color='#000000'>\",\"");
-			list = list.replace(/"$/, "<font color='#000000'>\"");
+			list = list.replace(/"$/,   "<font color='#000000'>\"");
 			list = list.replace(/\^1/g, "<font color='#FF0000'>");
 			list = list.replace(/\^2/g, "<font color='#00FF00'>");
 			list = list.replace(/\^3/g, "<font color='#FFFF00'>");
@@ -751,22 +766,22 @@ var aItemData = [
 		elCell.innerHTML = list;
 	};
 	var aSearchIpTableColums = [
-			{ key:"ip", label:"IP", sortable:true, hidden: bHideNumericIps },
-			{ key:"ip_txt", label:"IP Address", sortable:true },
-			{ key:"player_ids", label:"Player IDs", formatter: formatList, hidden: bHideIds },
-			{ key:"player_names", label:"Player Names", formatter: formatNameList }
+			{ key:"player_id", label:"Player ID", sortable:true, hidden: config.bHideIds },
+			{ key:"ip", label:"IP", sortable:true, hidden: config.bHideNumericIps },
+			{ key:"ip_text", label:"IP Address" },
+			{ key:"name", label:"Player Name", formatter: formatNameColors },
+			{ key:"creation", label:"Creation", formatter: formatDateTime, hidden: config.bHideCreationDate }
 		];
 	var oSearchIpSchema = {
 			resultsList: 'data',
 			fields: [
+				{key:'player_id', parser:'number'},
 				{key:'ip', parser:'number'},
-				{key:'ip_txt'},
-				{key:'player_ids'},
-				{key:'player_names'}
+				{key:'ip_text'},
+				{key:'name'},
+				{key:'creation'}
 			],
-			metaFields: {
-				rows: 'rows'
-			}
+			metaFields: { rows: 'rows' }
 		};
 	/* End of Search Panel Variables */
 	
@@ -774,7 +789,7 @@ var aItemData = [
 	
 
 	var msgSearchError = function() {
-		ri.alert("There was an error preforming the search.");
+		remoteInterface.alert("There was an error preforming the search.");
 	};
 
 	
@@ -858,7 +873,7 @@ var aItemData = [
 		{ key:"rate", label:"Rate", formatter:"number", sortable:true }
 	];
 
-	var oPlayerDataSource = new YAHOO.util.DataSource( sUrlBase + '?players' );
+	var oPlayerDataSource = new YAHOO.util.DataSource( config.sUrlBase + '?players' );
 	oPlayerDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
 	oPlayerDataSource.responseSchema = {
 		resultsList: 'data',
@@ -895,7 +910,7 @@ var aItemData = [
 
 	YAHOO.util.Event.addListener("about", "click", oAboutPanel.show, oAboutPanel, true);
 	YAHOO.util.Event.addListener("help_reference", "click", oHelpPanel.show, oHelpPanel, true);
-	YAHOO.util.Event.addListener("options", "click", oOptionsPanel.show, oOptionsPanel, true);
+	YAHOO.util.Event.addListener("options", "click", fLoadOptionsPanel);
 	YAHOO.util.Event.addListener("serverpassword", "click", oServerRconPwDlg.show, oServerRconPwDlg, true);
 	YAHOO.util.Event.addListener("currentplayers", "click", oCurrentPlayers.show, oCurrentPlayers, true);
 	YAHOO.util.Event.addListener("mainstatus", "click", oStatusPanel.show, oStatusPanel, true);
@@ -903,10 +918,13 @@ var aItemData = [
 	YAHOO.util.Event.addListener("searchname", "click", oSearchNameDlg.show, oSearchNameDlg, true);
 	YAHOO.util.Event.addListener("searchip", "click", oSearchIpDlg.show, oSearchIpDlg, true);
 	
-	YAHOO.util.Event.addListener("colornames", "click", fColorNames);
-	YAHOO.util.Event.addListener("convertduration", "click", fConvertDuration);
-	YAHOO.util.Event.addListener("showplayerids", "click", fShowIds);
-	YAHOO.util.Event.addListener("shownumericips", "click", fShowNumericIps);
+	// Listeners for Options Panel
+	YAHOO.util.Event.addListener("config_colornames", "click", fColorNames);
+	YAHOO.util.Event.addListener("config_convertduration", "click", fConvertDuration);
+	YAHOO.util.Event.addListener("config_showplayerids", "click", fShowIds);
+	YAHOO.util.Event.addListener("config_shownumericips", "click", fShowNumericIps);
+	YAHOO.util.Event.addListener("config_showcreation", "click", fShowCreation);
+	YAHOO.util.Event.addListener("config_datetimeformat", "click", fUpdateDateTime);
 	
 	
 	var key1 = new YAHOO.util.KeyListener(document, { alt:true, keys:90}, {fn:oSearchNameDlg.show, scope:oSearchNameDlg, correctScope:true});
@@ -921,7 +939,7 @@ var aItemData = [
 
 
 /*	Initialize and render when the DOM is ready to be scripted.	*/
-YAHOO.util.Event.onDOMReady( ri.init );
+YAHOO.util.Event.onDOMReady( remoteInterface.init );
 
 //-->
 </script>
@@ -936,7 +954,7 @@ YAHOO.util.Event.onDOMReady( ri.init );
 		<div class="bd">
 			<p class="about_title">Urban Terror 4.1 Remote Interface.</p><br>
 			<p class="about_version">Version: 0.1 &nbsp;-&nbsp; July 2009</p>
-			<p style="margin-left:2em;">Author: Jeff Genovy (jgen)</p>
+			<p style="margin-left:2em;">Author: jgen</p>
 		</div>
 	</div>
 
@@ -973,16 +991,20 @@ YAHOO.util.Event.onDOMReady( ri.init );
 			<fieldset id="option_container" class="option_buttons">
 				<legend>Options</legend>
 				<div>
-					<input type="checkbox" id="colornames" value="colornames">
-					<label for="colornames">Colorize Names</label><br>
-					<input type="checkbox" id="convertduration" value="convertduration">
-					<label for="convertduration">Convert Duration</label><br>
+					<input type="checkbox" id="config_colornames">
+					<label for="config_colornames">Colorize Names</label><br>
+					<input type="checkbox" id="config_convertduration">
+					<label for="config_convertduration">Convert Duration</label><br>
 				</div>
 				<div>
-					<input type="checkbox" id="showplayerids" value="showplayerids">
-					<label for="showplayerids">Show Player IDs</label><br>
-					<input type="checkbox" id="shownumericips" value="shownumericips">
-					<label for="shownumericips">Show Numeric IPs</label>
+					<input type="checkbox" id="config_showplayerids">
+					<label for="config_showplayerids">Show Player IDs</label><br>
+					<input type="checkbox" id="config_shownumericips">
+					<label for="config_shownumericips">Show Numeric IPs</label><br>
+					<input type="checkbox" id="config_showcreation">
+					<label for="config_showcreation">Show Creation Date/Time</label><br>
+					<label for="config_datetimeformat">Date/Time Format</label>
+					<input type="text" id="config_datetimeformat" value="" size="10" maxlength="32" alt="Date/time format string" title="Date/time format string">
 				</div>
 			</fieldset>
 		</div>
