@@ -1,4 +1,4 @@
-♦#summary Some basics on how to talk a UrT server
+#summary Some basics on how to talk a UrT server
 
 = Introduction =
 
