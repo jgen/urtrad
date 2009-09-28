@@ -55,8 +55,14 @@ If you are using a Linix/Unix/Solaris/BSD box then you can get the status of the
 
 Rcon Status (password required)
 
-`printf '\xFF\xFF\xFF\xFFrcon <PASSWORD> status\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT> | sed -ne ':x;/\xFF/{N;s/\xFF\xFF\xFF\xFFprint\n//;tx};/^$/d;p'`
+{{{
+printf '\xFF\xFF\xFF\xFFrcon <PASSWORD> status\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT> | sed -ne ':x;/\xFF/{N;s/\xFF\xFF\xFF\xFFprint\n//;tx};/^$/d;p'
+}}}
 
 Basic Status (no password required)
 
-`printf '\xFF\xFF\xFF\xFFgetstatus\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT>`
+{{{
+printf '\xFF\xFF\xFF\xFFgetstatus\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT>
+}}}
+
+(Replace `<PASSWORD>`, `<SERVER_IP>`, `<SERVER_PORT>` above with the actual values)
