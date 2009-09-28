@@ -30,13 +30,11 @@
         interface.php
             - Interface layer between web front end and database.
 
-        rcon_db vm_20090818.sql
-            - SQL to create database tables and populate with
-              some data to allow a basic demonstration.
+        radmode_database.sql
+            - SQL to create database tables.
 
         urtvars.pl
             - Additional variables for parsing log files.
-            - < Not Actually Used >
 
 
 ------------------------------------------------------------------------
