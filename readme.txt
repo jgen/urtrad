@@ -33,6 +33,9 @@
         radmode_database.sql
             - SQL to create database tables.
 
+        radmode_database_sqlite.sql
+            - SQL to create database for SQLite
+
         urtvars.pl
             - Additional variables for parsing log files.
 
