@@ -3,12 +3,36 @@
 
 TODO:
 
-	* Redesign database to not use packing of ips
-	  + (removes finite limit on ips per name & names per ip)
-	* 
+	* Add support for kicking/banning via web interface.
+
+	* Server History (UI for 'rcon_log' table)
+		+ searching based on date/time
+
+	* UI for 'maps' table
+		+ Changing the map via web interface.
+
+	* Support sqlite for database.
+
+	* Changing of	_____________	via web interface.
+		+	server config
+		+	rcon password
+		+	database config
+
+	* Player statistics (ping, score, etc)
+
+	* Modularize the design of rcon.pl
+
 	* Work on log rotation over ftp
 
 
+DONE:
+	* Redesign database to not use packing of ips
+	 + (removes finite limit on ips per name & names per ip)
 
+
+
+Far distant future:
+
+	* Reimpliment rcon.pl using a non-scripting language (C++)
 
 
