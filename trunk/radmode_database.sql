@@ -84,7 +84,7 @@ CREATE  TABLE IF NOT EXISTS `urt_rad`.`players` (
   `player_id` INT UNSIGNED NOT NULL AUTO_INCREMENT ,
   `name` VARCHAR(32) NOT NULL ,
   `duration` BIGINT UNSIGNED NOT NULL DEFAULT 0 ,
-  `creation` DATETIME NOT NULL DEFAULT NOW(),
+  `creation` DATETIME NULL ,
   PRIMARY KEY (`player_id`) )
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
@@ -96,7 +96,7 @@ CREATE  TABLE IF NOT EXISTS `urt_rad`.`ips` (
   `ip` INT UNSIGNED NOT NULL ,
   `ip_text` CHAR(15) ASCII NOT NULL ,
   `player_id` INT UNSIGNED NULL ,
-  `creation` DATETIME NOT NULL DEFAULT NOW() ,
+  `creation` DATETIME NULL ,
   INDEX `ip` (`ip` ASC) ,
   INDEX `player_id` (`player_id` ASC) ,
   CONSTRAINT `player_id`
