@@ -13,6 +13,7 @@ use warnings;
 use Data::Dumper;			# To be removed later
 $Data::Dumper::Sortkeys = 1;		# Sort the output of hashes by default
 
+use POSIX qw/strftime/;			# date/time formatting
 use Socket;				# Communicating with ioUrbanTerror Server
 use DBI;				# For database access
     
@@ -32,12 +33,12 @@ select STDOUT; $| = 1; # make unbuffered
 
 # ----- Database Configuration -------
 # TODO: centralized config for database - shared between rcon.pl and interface.php
-my $db_server		= 'mysql';
+my $db_driver		= 'SQLite';#'mysql';
 my $db_host 		= 'localhost';
 my $db_port		= '13390';
-my $db_database		= 'urt_rad';
-my $db_user		= 'rconlogs';
-my $db_pass		= 'urtlogs';
+my $db_database		= 'test_db.db';#'urt_rad';
+my $db_user		= '';#'rconlogs';
+my $db_pass		= '';#'urtlogs';
 
 
 # ----- Urban Terror Sever Variables ------
@@ -96,28 +97,35 @@ my %errors = (
 
 #-- Check if we can connect to that type of database -----------
 my %server_drivers = map {$_, 1} DBI->available_drivers();
-if ( !exists $server_drivers{$db_server} ) {
-	die ('No driver is currently installed for a "'. $db_server. '" database.'."\n"); }
+if ( !exists $server_drivers{$db_driver} ) {
+	die ('No driver is currently installed for a "'. $db_driver. '" database.'."\n"); }
 
-if (!inet_aton($db_host)) {
-	die ('Could not resolve database host "'. $db_host .'".'."\n"); }
+if ($db_driver ne 'SQLite') {
+	if (!inet_aton($db_host)) {
+		die ('Could not resolve database host "'. $db_host .'".'."\n"); }
 
-if (int($db_port) > 65535 || int($db_port) < 0) {
-	die ('Invalid port ['. $db_port .'] specified for database server.'."\n"); }
+	if (int($db_port) > 65535 || int($db_port) < 0) {
+		die ('Invalid port ['. $db_port .'] specified for database server.'."\n"); }
 
-if (!length($db_database)) {
-	die ('No database specified for the program to use.'); }
+	if (!length($db_database)) {
+		die ('No database specified for the program to use.'); }
 
-if (!length($db_user)) {
-	die ('No user name set for database access.');	}
+	if (!length($db_user)) {
+		die ('No user name set for database access.');	}
 
-if (!length($db_pass)) {
-	print 'Using an empty password. Consider setting a password for more security.'."\n"; }
+	if (!length($db_pass)) {
+		print 'Using an empty password. Consider setting a password for more security.'."\n"; }
+}
 #----------------
 
 
 # ---- Setup global database connector variables ----
-my $dsn = "dbi:$db_server:database=$db_database;host=$db_host;port=$db_port";
+my $dsn = '';
+if ($db_driver eq 'SQLite') {
+	$dsn = "dbi:SQLite:dbname=$db_database";
+} else {
+	$dsn = "dbi:$db_driver:database=$db_database;host=$db_host;port=$db_port";;
+}
 my $dbhandle = DBI->connect($dsn, $db_user, $db_pass) 
 	or die("Unable to connect to the database.\n". DBI->errstr ."\n");
 
@@ -173,9 +181,9 @@ sub db_getStatus() {
 		$log_lines_processed = 0;
 		$log_bytes_processed = 0;
 		$log_last_check = 0;
-		$last_update = time();
+		$last_update = $dbhandle->quote( strftime("%F %T", localtime) );
 		
-		$dbhandle->do('INSERT INTO `status` (backend_status,client_request,log_lines_processed,log_bytes_processed,log_last_check,last_update) VALUES ('."$backend_status, $client_request, $log_lines_processed, $log_bytes_processed, $log_last_check, FROM_UNIXTIME($last_update) )")
+		$dbhandle->do('INSERT INTO `status` (backend_status,client_request,log_lines_processed,log_bytes_processed,log_last_check,last_update) VALUES ('."$backend_status, $client_request, $log_lines_processed, $log_bytes_processed, $log_last_check, $last_update )")
 			or die('Unable to execute query.');
 	} else {
 		# Set the Global Status Variables
