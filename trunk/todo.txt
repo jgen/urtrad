@@ -3,6 +3,8 @@
 
 TODO:
 
+	* Support sqlite for database.
+
 	* Add support for kicking/banning via web interface.
 
 	* Server History (UI for 'rcon_log' table)
@@ -10,8 +12,6 @@ TODO:
 
 	* UI for 'maps' table
 		+ Changing the map via web interface.
-
-	* Support sqlite for database.
 
 	* Changing of	_____________	via web interface.
 		+	server config
