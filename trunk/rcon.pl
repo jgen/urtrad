@@ -42,6 +42,7 @@ my $db_pass		= '';#'urtlogs';
 
 
 # ----- Urban Terror Sever Variables ------
+# [ These are set via the database ]
 my $urt_server		= 0;
 my $urt_port		= 0;
 my $urt_proto		= getprotobyname('udp');
@@ -50,23 +51,23 @@ my $urt_addr		= '';
 my $urt_svars		= '';
 
 my $server_id			= 0;
-my $timeouts			= 0;
-my $timeout_last		= 0;
-my $timeout_delay		= 5;
-my $timeout_wait_delay		= 10;
+my $timeouts			= 0;		# Number of timeouts that have occured
+my $timeout_last		= '';		# Datetime string of the last timeout
+my $timeout_delay		= 5;		# How long to wait for a packet
+my $timeout_wait_delay		= 10;		# If a timeout occurs, how long to wait before trying again
 
 
-# ----- Status -----
+# ----- Status Table Vars -----
 my $backend_status		= 0;
 my $client_request		= 0;
-my $log_lines_processed		= 0;
-my $log_bytes_processed		= 0;
-my $log_last_check		= 0;
-my $log_check_delay		= 25;
-my $last_update			= '';
+my $log_lines_processed		= 0;		# not currently used
+my $log_bytes_processed		= 0;		# not currently used
+my $log_last_check		= 0;		# not currently used
+my $log_check_delay		= 25;		# not currently used
+my $last_update			= '';		# Datetime string of the last update
 
 
-# ----- Globals -----
+# ----- Global Status Vars -----
 my $main_status			= 1;
 my $need_rcon_poll		= 1;
 my $just_rcon_polled		= 0;
@@ -133,12 +134,15 @@ my $dbhandle = DBI->connect($dsn, $db_user, $db_pass)
 # Called on program termination
 END {
 	print "< Program Terminated >\n";
+	if ($dbhandle->err()) {
+		print 'Error '.$dbhandle->err().': '. $dbhandle->errstr ."\n";
+	}
 	if ($dbhandle) {
 		print "Disconnecting from database...\n";
 		$dbhandle->disconnect();
 	}
 	dump_debug();
-	print "\n< END >\n";
+	print "< END >\n";
 }
 
 
@@ -146,7 +150,7 @@ END {
 
 sub dump_debug() {
 	# Dump debug information
-	print "\n" . '-' x 40 . "\n";
+	print '-' x 40 . "\n";
 	print '-->  Dumping Debug Information:';
 	
 	print "     main_status = " . $main_status . "\n";
@@ -162,7 +166,7 @@ sub dump_debug() {
 	print "--> map_list_hash:\n";
 	warn Dumper \%map_list_hash;
 	
-	print "\n" . '-' x 40 . "\n";
+	print '-' x 40 . "\n";
 }
 
 sub db_getStatus() {
@@ -181,7 +185,7 @@ sub db_getStatus() {
 		$log_lines_processed = 0;
 		$log_bytes_processed = 0;
 		$log_last_check = 0;
-		$last_update = $dbhandle->quote( strftime("%F %T", localtime) );
+		$last_update = $dbhandle->quote( strftime("%F %T", localtime(time) ) );	# datetime string: 'YYYY-MM-DD HH:MM:SS'
 		
 		$dbhandle->do('INSERT INTO `status` (backend_status,client_request,log_lines_processed,log_bytes_processed,log_last_check,last_update) VALUES ('."$backend_status, $client_request, $log_lines_processed, $log_bytes_processed, $log_last_check, $last_update )")
 			or die('Unable to execute query.');
@@ -228,7 +232,7 @@ sub db_getServerInfo() {
 		$server_id		= int(${$servers}{server_id});
 		$timeouts		= int(${$servers}{timeouts}) || 0;
 		$timeout_delay		= int(${$servers}{timeout_delay}) || 5;
-		$timeout_last		= int(${$servers}{timeout_last}) || 0;
+		$timeout_last		= ${$servers}{timeout_last};
 		$timeout_wait_delay	= int(${$servers}{timeout_wait_delay}) || 10;
 	}
 	$servers_query_hndl->finish();
@@ -334,6 +338,7 @@ sub urt_rconStatus() {
 		if (@reply > 3) {	# Check if there are any players on the server
 			my $tmp_str = '';
 			my $name = '';
+			my $ip = 0;
 		
 			foreach( @reply[3..$#reply] ) {
 		
@@ -344,22 +349,23 @@ sub urt_rconStatus() {
 					$name =~ s/^\s+|\s+$//o;	# Trim leading and trailing whitespace
 					
 					if ($name eq '') { $name = ';NULL'; }	# This is pretty much a hack to cover players with no name (null length string)
-					
-					$tmp_str .= ",($pvars[1],$pvars[2],$pvars[3],".$dbhandle->quote($name).",INET_ATON('$pvars[6]'),$pvars[8],$pvars[9])";
+
+					$ip = unpack("N", inet_aton( $pvars[6] ) );	# Convert the IP string to an integer
 					
 					$secondary_player_hash{$name} ={slot	=> $pvars[1],
 									score	=> $pvars[2],
 									ping	=> $pvars[3],
 									ip	=> $pvars[6],
 									qport	=> $pvars[8],
-									rate	=> $pvars[9] }
+									rate	=> $pvars[9] };
+
+					# Multiple inserts are unfortunately necessary as not all databases support multiline inserts (ie: SQLite).
+					$tmp_str = '('.$pvars[1].','.$pvars[2].','.$pvars[3].','.$dbhandle->quote($name).','.$ip.','.$pvars[8].','.$pvars[9].')';
+
+					$dbhandle->do('INSERT INTO `current_players` (slot_num,score,ping,name,ip,qport,rate) VALUES '. $tmp_str)
+						or die("Unable to execute query.\n\n$tmp_str");
 				}
 			}
-			substr($tmp_str, 0, 1) = "";	# removes the first comma in tmp_str
-			
-			$dbhandle->do('INSERT INTO `current_players` (slot_num,score,ping,name,ip,qport,rate) VALUES '. $tmp_str)
-				or die("Unable to execute query.\n\n$tmp_str");
-			
 		} else {
 			print "No players connected to the server\n"; }
 	}
@@ -465,17 +471,18 @@ sub urt_getMapList() {
 	}
 }
 
-sub changeName($$$) {
+sub changeName($$$$) {
 	my $old		= shift || undef;	# Old player name
 	my $new		= shift || undef;	# New player name
-	my $time	= shift || time();
+	my $time	= shift || time;
+	my $dtime	= shift || $dbhandle->quote( strftime("%F %T", localtime($time)) );	# datetime string: 'YYYY-MM-DD HH:MM:SS'
 	
 	if (!$old || !$new) {
 		warn "Error: A Null player name was passed to changeName() ";
 		return; }
 	
-	my $ip		= $main_player_hash{$old}->{ip};
-	my $name	= $dbhandle->quote($new);		# escape the new name
+	my $ip		= unpack("N", inet_aton( $main_player_hash{$old}->{ip} ) );	# Convert the IP string to an integer
+	my $name	= $dbhandle->quote($new);					# Escape the new name
 
 	# Check if we have seen that Name before
 	my $name_qry = 'SELECT * FROM `players` WHERE name='. $name;
@@ -496,7 +503,7 @@ sub changeName($$$) {
 		# We have not seen this name before...
 		warn "New player name, adding to database...\n";
 		# Create a new entry in the players table
-		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.', 0, FROM_UNIXTIME('. $time .') )')
+		$dbhandle->do('INSERT INTO `players` VALUES (NULL,'.$name.', 0,'. $dtime .')')
 		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 		my $name_qry2 = 'SELECT * FROM `players` WHERE name='. $name;
@@ -514,7 +521,7 @@ sub changeName($$$) {
 	my $player_id = $main_player_hash{$old}->{player_id};
 
 	# IP Check
-	my $ips_qry = 'SELECT * FROM `ips` WHERE player_id='. $player_id .' AND ip=INET_ATON("'. $ip .'")';
+	my $ips_qry = 'SELECT * FROM `ips` WHERE player_id='. $player_id .' AND ip='. $ip;
 	my $ips_qry_hndl = $dbhandle->prepare($ips_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
 	$ips_qry_hndl->execute() or die("Unable to execute query.\n". $ips_qry_hndl->errstr . "\n");
 	my $ips_results = $ips_qry_hndl->fetchrow_arrayref();
@@ -527,23 +534,24 @@ sub changeName($$$) {
 		# - nothing really to do..
 	} else {
 		# New ip for this player name
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$player_id.',FROM_UNIXTIME('. $time .') )')
+		$dbhandle->do('INSERT INTO `ips` VALUES ('.$ip.',"'. $main_player_hash{$old}->{ip} .'",'.$player_id.','.$dtime.')')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
 	$ips_qry_hndl->finish();
 }
 
-sub newPlayer($$) {
+sub newPlayer($$$) {
 	# Check the database for existing entries that match the IP / Name and update them Or create new entries.
 	# Also: Add a new player to the main_player_hash
-	my $player	= shift;
-	my $time	= shift || time();		# store the time we detected them
+	my $player	= shift;			# player name
+	my $time	= shift || time();		# the time we detected them
+	my $dtime	= shift || $dbhandle->quote( strftime("%F %T", localtime($time)) );	# datetime string: 'YYYY-MM-DD HH:MM:SS'
 	
 	if (!$player) {
 		warn "Error: A Null player name was passed to newPlayer() ";
 		return;	}
 	
-	my $ip		= $secondary_player_hash{$player}->{ip};	# human readable ip address
+	my $ip = unpack("N", inet_aton( $secondary_player_hash{$player}->{ip} ) );	# Convert the IP string to an integer
 	
 	if (!$ip) {
 		warn "Error: The player passed to newPlayer() does not have an IP address. ";
@@ -553,7 +561,7 @@ sub newPlayer($$) {
 	my $playerid	= 0;				# pulled in from the database
 	my $duration	= 0;				# duration's default value is zero
 
-	printf("> Checking IP:%15s\tName: %-20s\t", $ip, $player);
+	printf("> Checking IP:%15s\tName: %-20s\t", $secondary_player_hash{$player}->{ip}, $player);
 	
 	# Check if we have seen that Name before
 	my $name_qry = 'SELECT * FROM `players` WHERE name='. $name;
@@ -574,7 +582,7 @@ sub newPlayer($$) {
 		# We have not seen this name before...
 		print 'New name, adding to database...'."\n";
 		# Create a new entry in the players table
-		$dbhandle->do('INSERT INTO `players` (name,duration,creation) VALUES ('.$name.',0,FROM_UNIXTIME('.$time.'))')
+		$dbhandle->do('INSERT INTO `players` VALUES (NULL,'.$name.',0,'.$dtime.')')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 		# Now retrieve the player_id from the newly created entry
@@ -595,7 +603,7 @@ sub newPlayer($$) {
 
 
 	# Check if we have seen that IP before
-	my $ip_qry = 'SELECT * FROM `ips` WHERE ip=INET_ATON("'. $ip .'") AND player_id='. $secondary_player_hash{$player}->{player_id};
+	my $ip_qry = 'SELECT * FROM `ips` WHERE ip='. $ip .' AND player_id='. $secondary_player_hash{$player}->{player_id};
 	my $ip_qry_hndl = $dbhandle->prepare($ip_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
 	$ip_qry_hndl->execute() or die("Unable to execute query.\n". $ip_qry_hndl->errstr ."\n");
 	my $ip_results = $ip_qry_hndl->fetchrow_arrayref();
@@ -612,14 +620,14 @@ sub newPlayer($$) {
 	} else {
 		# We have not seen that IP AND player name together before...
 		# Create a new entry in the ips table
-		$dbhandle->do('INSERT INTO `ips` (ip,ip_text,player_id,creation) VALUES (INET_ATON("'.$ip.'"),"'.$ip.'",'.$secondary_player_hash{$player}->{player_id}.',FROM_UNIXTIME('.$time.'))')
+		$dbhandle->do('INSERT INTO `ips` VALUES ('.$ip.',"'.$secondary_player_hash{$player}->{ip}.'",'.$secondary_player_hash{$player}->{player_id}.','.$dtime.')')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 	}
 	$ip_qry_hndl->finish();
 
 	
 	# Add an entry to the 'rcon_log' table
-	$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (FROM_UNIXTIME('. $time .'),'.$secondary_player_hash{$player}->{player_id}.',INET_ATON("'. $ip .'"),'.$secondary_player_hash{$player}->{slot}.',1)')
+	$dbhandle->do('INSERT INTO `rcon_log` VALUES (NULL,'.$dtime.','.$secondary_player_hash{$player}->{player_id}.','. $ip .','.$secondary_player_hash{$player}->{slot}.',1)')
 		or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 
 
@@ -636,10 +644,11 @@ sub newPlayer($$) {
 
 sub db_doPlayerStats() {
 	my $time = time();		# Store the current time ( for creating database entries and disconnects )
+	my $dtime = $dbhandle->quote( strftime("%F %T", localtime($time)) );	# datetime string: 'YYYY-MM-DD HH:MM:SS'
 
 	if ($main_status == 1) {		# On script startup we add all the players found on the server.
 		foreach my $player (keys %secondary_player_hash) {
-			newPlayer($player, $time); }
+			newPlayer($player, $time, $dtime); }
 		$main_status = 2;
 		return;						# and thats it - there isn't much else to do.
 	}
@@ -664,14 +673,14 @@ sub db_doPlayerStats() {
 				
 				if (scalar( keys %main_player_hash ) == 0) {
 					warn "New player joined empty server.";	#New player has joined empty server
-					newPlayer($player, $time);
+					newPlayer($player, $time, $dtime);
 				} else {
 					foreach my $old (keys %main_player_hash) {
 						if ( ($main_player_hash{$old}{ip} eq $secondary_player_hash{$player}{ip}) && ($main_player_hash{$old}{slot} == $secondary_player_hash{$player}{slot}) ) {
 							# If the ip AND the slot are the same
 							# then it's the same player - they just changed their name
 							warn "Player: '$old' changed name to '$player'\n";
-							changeName($old, $player, $time);
+							changeName($old, $player, $time, $dtime);
 
 							$main_player_hash{$player} = {};	# Make a new key for their new name.
 							# Copy over their old data
@@ -683,14 +692,14 @@ sub db_doPlayerStats() {
 					# if they still don't exist in the old list, then they truly are a new player
 					if ( !exists($main_player_hash{$player}) ) {
 						warn "New player has joined.";	# A new player has joined the server
-						newPlayer($player, $time);
+						newPlayer($player, $time, $dtime);
 					}
 				}
 			} else {
 				if (!exists($main_player_hash{$player}{ip})) {
 					# There is already an entry in the main hash for this player, but no ip.
 					# We have an ip now, so let's add the player again to the main hash.
-					newPlayer($player, $time);
+					newPlayer($player, $time, $dtime);
 				} else {
 					if ( ($main_player_hash{$player}->{ip} ne $secondary_player_hash{$player}->{ip}) || ($main_player_hash{$player}->{slot} ne $secondary_player_hash{$player}->{slot}) ) {
 						# IF the ip AND the slot are different but the name is the same
@@ -770,14 +779,15 @@ sub db_doPlayerStats() {
 	# III.) Finally, check if anybody has gone missing from the old list...
 
 	my $dur = 0;
+	my $ip = 0;
 	foreach my $old (keys %main_player_hash) {
 		if ( !exists($secondary_player_hash{$old}) ) {
 			# Somebody disconnected
 			$dur = ($time - $main_player_hash{$old}->{time});	# Calculate how long they were on the server
+			$ip = unpack("N", inet_aton( $main_player_hash{$old}->{ip} ) );		# Convert the IP string to an integer
 			
 			print "Name: ". $old . "\tDisconnected.\n";
-			print " connected at: ". $main_player_hash{$old}->{time} . "\n";
-			print " duration: ". $dur ." seconds\n";
+			print " -Connected at: ". $main_player_hash{$old}->{time} . "\tDuration: ". $dur ." seconds\n";
 			
 			warn Dumper $main_player_hash{$old};
 
@@ -786,7 +796,7 @@ sub db_doPlayerStats() {
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 			
 			# Add an entry to the 'rcon_log' table
-			$dbhandle->do('INSERT INTO `rcon_log` (datetime,player_id,ip,slot,action) VALUES (FROM_UNIXTIME('. $time .'),'.$main_player_hash{$old}->{player_id}.',INET_ATON("'. $main_player_hash{$old}->{ip} .'"),'.$main_player_hash{$old}->{slot}.',0)')
+			$dbhandle->do('INSERT INTO `rcon_log` VALUES (NULL,'.$dtime.','.$main_player_hash{$old}->{player_id}.','.$ip.','.$main_player_hash{$old}->{slot}.',0)')
 			or die("Unable to execute query.\n". $dbhandle->errstr ."\n");
 			
 			delete $main_player_hash{$old};
@@ -824,7 +834,10 @@ sub urt_serverError($) {
 		$backend_status = int($result);
 		
 		# If a timeout occured, then store the time at which it approximately occured. Also increment the timeout counter
-		if ($backend_status == -5) { $timeout_last = time(); $timeouts++; }
+		if ($backend_status == -5) {
+			$timeout_last = strftime("%F %T", localtime(time));	# datetime string: 'YYYY-MM-DD HH:MM:SS'
+			$timeouts++;
+		}
 		# Request rcon poll next time.
 		$need_rcon_poll = 1;
 		
@@ -835,7 +848,7 @@ sub urt_serverError($) {
 
 # Update the "status" database with our current information.
 sub db_updateStatus() {
-	$last_update = time();	# Grab the current time.
+	$last_update = $dbhandle->quote( strftime("%F %T", localtime( time() )) );	# Grab the current time ( datetime string: 'YYYY-MM-DD HH:MM:SS')
 	$dbhandle->do('UPDATE `status` SET backend_status='.$backend_status.',log_lines_processed='.$log_lines_processed.',log_bytes_processed='.$log_bytes_processed.',log_last_check='.$log_last_check.',last_update='.$last_update);
 }
 
@@ -861,9 +874,9 @@ sub db_updateServer() {
 			$srv_name	= $dbhandle->quote( $s_vars{'sv_hostname'} );
 		}
 		
-		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last='.$timeout_last.',name='.$srv_name.',current_map='.$map_safe.',svars='.$svars.' WHERE server_id='. $server_id;
+		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'",name='.$srv_name.',current_map='.$map_safe.',svars='.$svars.' WHERE server_id='. $server_id;
 	} else {
-		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last='.$timeout_last.' WHERE server_id='. $server_id;
+		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'" WHERE server_id='. $server_id;
 	}	
 
 	$dbhandle->do($qry) or die('Could not update database with server information...');
@@ -898,7 +911,7 @@ sub db_updateMapList() {
 			if (!defined($rows) || $rows == -1) {
 				print 'An error occured while updating the database map list...';
 			} elsif ($rows == 0) {
-				$qry = 'INSERT INTO `maps` (map_name, times_played) VALUES ('. $name .', '. $times .')';
+				$qry = 'INSERT INTO `maps` (map_id,map_name,times_played) VALUES (NULL,'. $name .', '. $times .')';
 
 				$rows = $dbhandle->do($qry) or die('Error updating database map list...');
 				if ($rows != 1) {
@@ -946,6 +959,7 @@ sub conditional_sleep() {
 #	Main Loop
 #============================================
 
+print '=' x 40 . "\n" . 'Started at: ' . localtime(time) ."\n\n";
 db_getStatus();
 db_getServerInfo();
 db_getMapList();
@@ -982,7 +996,6 @@ while ($main_status) {
 			if ($need_rcon_poll > 0) {		# Then query the server...
 				if (!$urt_rcon_pw) {
 					$backend_status = -12;
-					warn error_msg($backend_status);
 				} else {
 					urt_rconStatus();
 				}
