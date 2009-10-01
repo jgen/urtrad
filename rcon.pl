@@ -13,22 +13,19 @@ use warnings;
 use Data::Dumper;			# To be removed later
 $Data::Dumper::Sortkeys = 1;		# Sort the output of hashes by default
 
-use POSIX qw/strftime/;			# date/time formatting
+use POSIX qw/strftime/;			# Date/time Formatting
+use Getopt::Long;			# Command-line Options
+use Pod::Usage;				# Command-line Documentation
 use Socket;				# Communicating with ioUrbanTerror Server
 use DBI;				# For database access
     
 require './urt_common.pl';		# Not currently used fully, maybe later on [useful for stats]
 
-# Output to a log file to assist with debugging
-# - Problems were occuring with 'null' player names after running the script for several hours
-close(STDOUT);
-close(STDERR);
 
-open (STDOUT, '>>', "/tmp/urtrad_log") or die "Can't redirect STDOUT: $!";
-open (STDERR, ">&STDOUT")     or die "Can't dup STDOUT: $!";
-
-select STDERR; $| = 1; # make unbuffered
-select STDOUT; $| = 1; # make unbuffered
+# ----- Command line Options -----
+my $opt_verbose	= 0;			# Verbosity of output (0=limited, 1, 2=detailed)
+my $opt_log	= '';			# Log all output to a given file
+my $opt_help	= 0;			# Output help and exit if set
 
 
 # ----- Database Configuration -------
@@ -96,6 +93,30 @@ my %errors = (
 
 ############ Start of Execution #############
 
+
+# Process command-line options
+GetOptions(
+	'h|help|?:+' => \$opt_help,
+	'v|verbose:+' => \$opt_verbose,
+	'log=s' => \$opt_log
+) or pod2usage({-verbose => 1, -output => \*STDOUT}) && exit(2);
+
+pod2usage({-verbose => $opt_help, -output => \*STDOUT}) && exit if ($opt_help);
+
+# Setup logging if needed.
+if ($opt_log) {
+	# Redirect all output to a log file
+	close(STDOUT);
+	close(STDERR);
+
+	open (STDOUT, '>>', $opt_log) or die "Can't open file '$opt_log' -- $!";
+	open (STDERR, ">&STDOUT")     or die "Can't dup STDOUT: $!";
+
+	select STDERR; $| = 1; # make unbuffered
+	select STDOUT; $| = 1; # make unbuffered
+}
+
+
 #-- Check if we can connect to that type of database -----------
 my %server_drivers = map {$_, 1} DBI->available_drivers();
 if ( !exists $server_drivers{$db_driver} ) {
@@ -117,8 +138,6 @@ if ($db_driver ne 'SQLite') {
 	if (!length($db_pass)) {
 		print 'Using an empty password. Consider setting a password for more security.'."\n"; }
 }
-#----------------
-
 
 # ---- Setup global database connector variables ----
 my $dsn = '';
@@ -130,23 +149,29 @@ if ($db_driver eq 'SQLite') {
 my $dbhandle = DBI->connect($dsn, $db_user, $db_pass) 
 	or die("Unable to connect to the database.\n". DBI->errstr ."\n");
 
-	
+
 # Called on program termination
 END {
-	print "< Program Terminated >\n";
-	if ($dbhandle->err()) {
-		print 'Error '.$dbhandle->err().': '. $dbhandle->errstr ."\n";
+	if (defined $dbhandle) {
+		print "< Program Terminated >\n";
+
+		if ($dbhandle) {
+			if ($dbhandle->err()) {
+				print 'Error '.$dbhandle->err().': '. $dbhandle->errstr ."\n"; }
+			if ($opt_verbose) { print "Disconnecting from database...\n"; }
+
+			$dbhandle->disconnect();
+		}
+		if ($opt_verbose > 1) {
+			dump_debug();
+			print "< END >\n";
+		}
 	}
-	if ($dbhandle) {
-		print "Disconnecting from database...\n";
-		$dbhandle->disconnect();
-	}
-	dump_debug();
-	print "< END >\n";
 }
+#----------------
 
 
-######## Subroutines ########
+######### Subroutines #########
 
 sub dump_debug() {
 	# Dump debug information
@@ -248,8 +273,10 @@ sub db_getMapList() {
 	if (!defined($rows) || $rows < 1) {
 		# no maps in the database map listing.
 		if ($backend_status == 0) {
-			# Just staring up 
-			warn "No maps found in the database.";
+			# Just staring up
+			if ($opt_verbose) {
+				warn "No maps found in the database.";
+			}
 		}
 
 		# Query the server to get a full listing of maps files on the sever
@@ -367,7 +394,8 @@ sub urt_rconStatus() {
 				}
 			}
 		} else {
-			print "No players connected to the server\n"; }
+			if ($opt_verbose) { print "No players connected to the server\n"; }
+		}
 	}
 }
 
@@ -385,7 +413,7 @@ sub urt_getStatus() {
 				$urt_svars = $reply[1];		# update the svar string
 				db_updateServer();		# update the server info in the database
 			} else {
-				warn "- Server vars have changed.";
+				if ($opt_verbose) { warn "- Server vars have changed."; }
 				$need_rcon_poll = 1;
 				#return;		# We don't need to return right away...
 			}
@@ -409,8 +437,10 @@ sub urt_getStatus() {
 
 		if (scalar(@players) != scalar(keys %secondary_player_hash)) {
 			# We have a different number of players compared to last time
-			print "Number of players changed.";
-			print "\t array: ", scalar(@players), " hash: ", scalar(keys %secondary_player_hash), "\n";
+			if ($opt_verbose) {
+				print "Number of players changed.";
+				print "\t array: ", scalar(@players), " hash: ", scalar(keys %secondary_player_hash), "\n";
+			}
 			$need_rcon_poll = 1;
 		}
 		
@@ -425,7 +455,9 @@ sub urt_getStatus() {
 			if ($name eq '') { $name = ';NULL'; }	# This is pretty much a hack to cover players with no name (null length string)
 			
 			if ( !exists($secondary_player_hash{$name}) ) {
-				print " New name: ". $name ."\n";
+				if ($opt_verbose) {
+					print " New name: ". $name ."\n";
+				}
 				$need_rcon_poll = 1;	# new player name found: request rcon update
 			}
 			# If this player was 'connecting' last time but has a valid ping now, remove them from 'connecting' hash and request rcon update.
@@ -616,7 +648,7 @@ sub newPlayer($$$) {
 	} elsif ($ip_qry_hndl->rows == 1) {
 		# The IP AND Player_ID are listed in the table
 		# - we have seen this IP with this Name before.
-		print 'Welcome back: '. $player ."\n";
+		if ($opt_verbose) { print 'Welcome back: '. $player ."\n"; }
 	} else {
 		# We have not seen that IP AND player name together before...
 		# Create a new entry in the ips table
@@ -662,7 +694,7 @@ sub db_doPlayerStats() {
 		
 			if ((keys %{$secondary_player_hash{$player}}) < 3) {
 				# This player is still "Connecting..." and is not listed in rcon status yet.
-				warn "Player: $player is connecting...";
+				if ($opt_verbose) {	warn "Player: $player is connecting..."; }
 				# I suppose we could add the name to the players table. but we would have no IP to go with it....
 				# So we store the name in a temporary hash of 'connecting players'
 				# And check if they are fully connected next time, or have disappeared/disconnected.
@@ -672,14 +704,15 @@ sub db_doPlayerStats() {
 			if ( !exists($main_player_hash{$player}) ) {
 				
 				if (scalar( keys %main_player_hash ) == 0) {
-					warn "New player joined empty server.";	#New player has joined empty server
+					# New player joined empty server
+					if ($opt_verbose) {	warn "New player joined empty server."; }
 					newPlayer($player, $time, $dtime);
 				} else {
 					foreach my $old (keys %main_player_hash) {
 						if ( ($main_player_hash{$old}{ip} eq $secondary_player_hash{$player}{ip}) && ($main_player_hash{$old}{slot} == $secondary_player_hash{$player}{slot}) ) {
 							# If the ip AND the slot are the same
 							# then it's the same player - they just changed their name
-							warn "Player: '$old' changed name to '$player'\n";
+							if ($opt_verbose) {	warn "Player: '$old' changed name to '$player'\n"; }
 							changeName($old, $player, $time, $dtime);
 
 							$main_player_hash{$player} = {};	# Make a new key for their new name.
@@ -691,7 +724,7 @@ sub db_doPlayerStats() {
 					}
 					# if they still don't exist in the old list, then they truly are a new player
 					if ( !exists($main_player_hash{$player}) ) {
-						warn "New player has joined.";	# A new player has joined the server
+						if ($opt_verbose) {	warn "New player has joined."; }
 						newPlayer($player, $time, $dtime);
 					}
 				}
@@ -706,10 +739,12 @@ sub db_doPlayerStats() {
 						# then we missed a disconnect AND a join.
 						warn "Error: New player detected with previously used name.\nWe have missed a player 'Disconnect' And a player 'Join'\n";
 						warn "Perhaps the time between status updates is too long?...";
-						warn 'Debug information: ';
-						warn Dumper $player;
-						warn Dumper 'main hash:' , $main_player_hash{$player};
-						warn Dumper 'second hash:' , $secondary_player_hash{$player};
+						if ($opt_verbose > 1) {
+							warn 'Debug information: ';
+							warn Dumper $player;
+							warn Dumper 'main hash:' , $main_player_hash{$player};
+							warn Dumper 'second hash:' , $secondary_player_hash{$player};
+						}
 					}
 				}
 			}
@@ -731,8 +766,10 @@ sub db_doPlayerStats() {
 	# Check the list of 'connecting' players to see if they are still listed as trying to connect, if not then delete them from the list.
 	foreach my $player (keys %connecting_players) {
 		if ( !exists($secondary_player_hash{$player}) ) {
-			warn "Somebody briefly connected to the the server,\n But left before we could get their info.";
-			warn "Name was: $player \n";
+			if ($opt_verbose) {
+				warn "Somebody briefly connected to the the server,\n But left before we could get their info.";
+				warn "Name was: $player \n";
+			}
 			delete $connecting_players{$player};
 		}
 	}
@@ -787,9 +824,14 @@ sub db_doPlayerStats() {
 			$ip = unpack("N", inet_aton( $main_player_hash{$old}->{ip} ) );		# Convert the IP string to an integer
 			
 			print "Name: ". $old . "\tDisconnected.\n";
-			print " -Connected at: ". $main_player_hash{$old}->{time} . "\tDuration: ". $dur ." seconds\n";
-			
-			warn Dumper $main_player_hash{$old};
+
+			if ($opt_verbose) {
+				print " -Connected at: ". $main_player_hash{$old}->{time} . "\tDuration: ". $dur ." seconds\n";
+
+				if ($opt_verbose > 1) {
+					warn Dumper $main_player_hash{$old};
+				}
+			}
 
 			# Update the player table with their new duration
 			$dbhandle->do('UPDATE `players` SET duration='.($main_player_hash{$old}->{duration} + $dur).' WHERE player_id='. $main_player_hash{$old}->{player_id})
@@ -964,7 +1006,7 @@ db_getStatus();
 db_getServerInfo();
 db_getMapList();
 
-if ($backend_status < 0) {
+if ($opt_verbose && $backend_status < 0) {
 	print "Looks like there was a problem last time.\nThe error was:\n";
 	print "\t". error_msg($backend_status). "\n\n"; }
 
@@ -1012,3 +1054,52 @@ while ($main_status) {
 
 	conditional_sleep();
 }
+
+###########  END  #############
+
+__END__
+
+=head1 TITLE
+
+Rcon Monitoring Script
+
+=head1 NAME
+
+rcon.pl
+
+=head1 DESCRIPTION
+
+This program monitors an Urban Terror server and feeds the information into a database.
+
+=head1 SYNOPSIS
+
+rcon.pl [options]
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-h>
+
+Display this help message.
+
+=item B<-v>
+
+Increase output verbosity.
+
+=item B<-log> C</path/to/file>
+
+Log all output to a given file.
+
+=back
+
+=head1 LICENSE
+
+This program is released under a BSD style license. See LICENSE.txt file for details.
+
+=head1 AUTHOR
+
+Jeff Genovy <jeffgenovy@gmail.com>
+
+=cut
+
