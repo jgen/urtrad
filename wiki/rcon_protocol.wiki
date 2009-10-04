@@ -66,3 +66,12 @@ printf '\xFF\xFF\xFF\xFFgetstatus\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT>
 }}}
 
 (Replace `<PASSWORD>`, `<SERVER_IP>`, `<SERVER_PORT>` above with the actual values)
+
+
+= Blacklisted Characters =
+
+The quake3 server does not allow any variable to contain:
+
+`\ ; "`
+	
+	
