@@ -40,7 +40,10 @@ The 'getstatus' command is what is used by sites like Gametracker and programs l
 
 || *Command* || *Info* || *Tested Remotely* ||
 || `getstatus` || Returns a basic list of players and the server config || Yes ||
+|| `getinfo` || Returns a short description on the server (name, map, players..) || Yes ||
+|| `getchallenge` || Returns an integer for a challenge response || Yes ||
 || `rcon status`  || Returns list of players and their information || Yes ||
+|| `rcon serverinfo || Returns a formatted list of the same information as `getstatus` || Yes ||
 || `rcon fdir *.bsp` || Returns list of all maps on the server || Yes ||
 || `rcon map <map name>` || Changes current map || Yes ||
 || `rcon kick <player name>` || Kicks the player with the matching name  || No ||
