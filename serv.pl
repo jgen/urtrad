@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+# Emulates a Urban Terror 4.1 server for testing purposes
+#
 use strict;
 use IO::Socket;
 use Data::Dumper;
