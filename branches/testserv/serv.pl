@@ -6,16 +6,20 @@ use IO::Socket;
 use Data::Dumper;
 use Getopt::Long;
 use FileHandle;
+use Pod::Usage;
 
-my ($opt_verbose, $opt_port, $opt_test, $opt_pw, $opt_random);
+my ($opt_verbose, $opt_port, $opt_test, $opt_pw, $opt_random, $opt_help);
 
 GetOptions(
 	'v|verbose:+' => \$opt_verbose,
 	'p|port=i' => \$opt_port,
 	'pw|password=s' => \$opt_pw,
-	't|test=s' => \$opt_test,
-	'r|rand=i' => \$opt_random
-);
+	'l|load=s' => \$opt_test,
+	'r|rand=i' => \$opt_random,
+	'h|help|?:+' => \$opt_help
+) or pod2usage({-verbose => 1, -output => \*STDOUT}) && exit(2);
+
+pod2usage({-verbose => $opt_help, -output => \*STDOUT}) && exit if ($opt_help);
 
 my $RCON_PW	= $opt_pw || 'hello';
 my $URT_PORT	= $opt_port || 27960;
@@ -166,8 +170,10 @@ while ($sock->recv($msg, $MAX_LENGTH)) {
 }
 
 END {
-	$sock->close();
-	print Data::Dumper->Dump( [\%stats], [qw(*stats)] );
+	if ($sock) {
+		$sock->close();
+		print Data::Dumper->Dump( [\%stats], [qw(*stats)] );
+	}
 }
 
 sub getinfo($) {
@@ -471,14 +477,14 @@ sub update_test() {
 
 	if ($stats{'total_packets'} % 2) {
 		$rand = int(rand(10));
-		if ($rand == 0) {
+		if ((scalar %players) && $rand == 0) {
 			foreach my $key (keys %players) {
 				delete $players{$key};
 				last;	
 			}
 		}
 		
-		if ($rand > 7 && ((scalar %players) < $svars{'sv_maxclients'}) ) {
+		if ($rand > 6 && ((scalar %players) < $svars{'sv_maxclients'}) ) {
 			if (@playerlist) {
 				for (0 .. $svars{'sv_maxclients'}) {
 					if (!$players{$_}) {
@@ -541,3 +547,75 @@ sub random_playerlist() {
 		push(@playerlist, $temp)
 	}
 }
+
+
+__END__
+
+=head1 TITLE
+
+testserv
+
+=head1 DESCRIPTION
+
+Emulates a Urban Terror 4.1 server.
+(At least as far as a program like HLSW is concerned.)
+Responds to status and rcon commands.
+
+=head1 SYNOPSIS
+
+serv.pl [options]
+
+=head1 OPTIONS
+
+Abbreviations in square brackets.
+
+=over 8
+
+=item *
+
+B<--help> [-h]
+
+Display this help message. (Use twice for a formatted page)
+
+=item *
+
+B<--verbose> [-v]
+
+Increase output verbosity.
+
+=item *
+
+B<--port x> [-p x]
+
+Port number to listen on (default is 27960)
+
+=item *
+
+B<--password x> [-pw x]
+
+Set the RCON password
+
+=item *
+
+B<--load FILE> [-l FILE]
+
+Load player list and server config from FILE
+
+=item *
+
+B<--rand x> [-r x]
+
+Generate a list of random players to use.
+
+=back
+
+=head1 LICENSE
+
+This program is released under a BSD style license. See LICENSE.txt file for details.
+
+=head1 AUTHOR
+
+jgen <jgen@lavabit.com>
+
+=cut
+
