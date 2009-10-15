@@ -13,6 +13,8 @@ use warnings;
 use Data::Dumper;			# To be removed later
 $Data::Dumper::Sortkeys = 1;		# Sort the output of hashes by default
 
+use Time::HiRes qw/usleep/;
+
 use POSIX qw/strftime/;			# Date/time Formatting
 use Getopt::Long;			# Command-line Options
 use Pod::Usage;				# Command-line Documentation
@@ -33,7 +35,7 @@ my $opt_help	= 0;			# Output help and exit if set
 my $db_driver		= 'SQLite';#'mysql';
 my $db_host 		= 'localhost';
 my $db_port		= '13390';
-my $db_database		= 'test_db.db';#'urt_rad';
+my $db_database		= 'fakeserv.db';#'urt_rad';
 my $db_user		= '';#'rconlogs';
 my $db_pass		= '';#'urtlogs';
 
@@ -52,6 +54,14 @@ my $timeouts			= 0;		# Number of timeouts that have occured
 my $timeout_last		= '';		# Datetime string of the last timeout
 my $timeout_delay		= 5;		# How long to wait for a packet
 my $timeout_wait_delay		= 10;		# If a timeout occurs, how long to wait before trying again
+
+
+# ----- Socket Configuration -----
+my $socket_handle;
+my $SOCK_MAX_LENGTH	= 1500;		# Ethernet MTU is 1500 bytes -- Absolute maximum is 65,535
+my $SOCK_MAX_PACKETS	= 64;		# Maximum number of packets for a response
+my $SOCK_TIMEOUT	= 1;		# Seconds to wait for Secondary response (additional packets)
+my $SOCK_PACKET_SIZE	= 950;		# Approx. size of ioQuake3 packet after which messages are split
 
 
 # ----- Status Table Vars -----
@@ -73,6 +83,13 @@ my %main_player_hash		= ();
 my %secondary_player_hash	= ();
 my %connecting_players		= ();
 my %map_list_hash		= ();
+
+
+# ----- Program Stats -----
+my %stats;
+$stats{'total_packets'} = 0;
+$stats{'total_rcon'} = 0;
+$stats{'total_bytes'} = 0;
 
 
 # ----- Error Messages -----
@@ -162,6 +179,9 @@ END {
 
 			$dbhandle->disconnect();
 		}
+
+		if ($socket_handle) { close $socket_handle; }
+
 		if ($opt_verbose > 1) {
 			dump_debug();
 			print "< END >\n";
@@ -181,16 +201,12 @@ sub dump_debug() {
 	print "     main_status = " . $main_status . "\n";
 	print "  need_rcon_poll = ". $need_rcon_poll . "\n";
 	print "just_rcon_polled = ". $just_rcon_polled . "\n";
-	
-	print "--> main_player_hash:\n";
-	warn Dumper \%main_player_hash;
-	print "--> secondary_player_hash:\n";
-	warn Dumper \%secondary_player_hash;
-	print "--> connecting_players:\n";
-	warn Dumper \%connecting_players;
-	print "--> map_list_hash:\n";
-	warn Dumper \%map_list_hash;
-	
+
+	print Data::Dumper->Dump( [\%stats], [qw(*stats)] );
+	print Data::Dumper->Dump( [\%main_player_hash], [qw(*main_player_hash)] );
+	print Data::Dumper->Dump( [\%secondary_player_hash], [qw(*secondary_player_hash)] );
+	print Data::Dumper->Dump( [\%connecting_players], [qw(*connecting_players)] );
+	print Data::Dumper->Dump( [\%map_list_hash], [qw(*map_list_hash)] );
 	print '-' x 40 . "\n";
 }
 
@@ -300,45 +316,11 @@ sub db_getMapList() {
 	$map_qry_hndl->finish();
 }
 
-sub urt_queryServer($) {
-	my $query = shift;
-	my $incoming = '';
-	my $msg = '';
-	my $who;	# Stores the ip address and port of the computer that responded. - Not Used
-				#  - could unpack & check to verify the actual _requested ip_ responded...
-				#     ie: check for icmp redirects and such
-
-	# Open up a socket to send out our request
-	socket (hndl_sock, PF_INET, SOCK_DGRAM, $urt_proto) 		or return -1;
-	connect (hndl_sock, $urt_addr)					or return -2;
-	send (hndl_sock, $query, 0, $urt_addr)				or return -3;
-
-	vec( (my $rin=''), fileno(hndl_sock), 1 ) = 1;
-
-	if ( select($rin, undef, undef, $timeout_delay) ) {
-			( $who = recv (hndl_sock, $incoming, 9999, 0) )	or return -4;
-	} else { 							   return -5;}
-
-	# All messages from the ioQuake engine end with a newline.
-	# If the incoming message did not end with a newline, then try to recieve the next packet.
-	# - For example: 'rcon status' replies from a server with 14+ players is often sent in 2 packets)
-	while ($incoming !~ /\n$/) {
-		#warn ">>waiting for another packet...";
-		if ( select($rin, undef, undef, $timeout_delay) ) {
-			( $who = recv (hndl_sock, $msg, 9999, 0) )	or return -4;
-		} else { 						   return -5;}
-		$incoming .= $msg;
-	}
-
-	close hndl_sock							or return -6;
-	return $incoming;
-}
-
 sub urt_rconStatus() {
 	print 'Requesting rcon status update at ('. localtime() .").\n";
 
 	my $msg = chr(255) x 4 . 'rcon '. $urt_rcon_pw ." status\n";
-	my $result = urt_queryServer($msg);
+	my $result = urt_queryServer($msg, $urt_addr);
 
 	if ( length($result) < 29 ){
 		urt_serverError($result);
@@ -401,7 +383,7 @@ sub urt_rconStatus() {
 
 sub urt_getStatus() {
 	my $msg = chr(255) x 4 . "getstatus\n";
-	my $result = urt_queryServer($msg);
+	my $result = urt_queryServer($msg, $urt_addr);
 
 	if ( length($result) < 29 ){
 		urt_serverError($result);
@@ -481,7 +463,7 @@ sub urt_getMapList() {
 	warn "Requesting full map list from server....\n";
 
 	my $msg = chr(255) x 4 . 'rcon '. $urt_rcon_pw ." fdir *.bsp\n";
-	my $result = urt_queryServer($msg);
+	my $result = urt_queryServer($msg, $urt_addr);
 
 	if ( length($result) < 29 ){
 		urt_serverError($result);
@@ -988,9 +970,69 @@ sub conditional_sleep() {
 		print "An error occured. sleeping for 15 seconds.\n";
 		sleep(15);
 	} elsif ($need_rcon_poll == 0) {
-		sleep(3)		# Default sleep time
+#		sleep(3)		# Default sleep time
+		usleep(100_000);
 	} else {
-		sleep(1);		# Between getStatus and rconStatus
+#		sleep(1);		# Between getStatus and rconStatus
+		usleep(50_000);
+	}
+}
+
+sub socket_new() {
+	socket($socket_handle, PF_INET, SOCK_DGRAM, $urt_proto) or die("Could not open a socket.\nError: $!\n");
+}
+
+sub socket_connect($) {
+	my $addr = shift;
+	return -2 if (!$addr or !$socket_handle);
+
+	my ($port, $ip) = sockaddr_in($addr);
+
+	if (!connect($socket_handle, $addr)) {
+		print 'Could not connect to server: '.inet_ntoa($ip).':'.$port."\nError: $!\n";
+		return -2;
+	}
+	return 1;
+}
+
+sub urt_queryServer($$) {
+	my $qry = shift;
+	my $addr = shift;
+	return -3 if (!$qry or !$addr or !$socket_handle);
+	my ($reply, $msg, $rin, $rout, $servport, $servip, $who, $port, $ip, $size, $packets);
+	$reply = $msg = $rin = $rout = '';
+	$packets = $size = 0;
+
+	send ($socket_handle, $qry, 0, $addr) or return -3;
+	vec( ($rin=''), fileno($socket_handle), 1 ) = 1;
+
+	if (select($rout = $rin, undef, undef, $timeout_delay)) {
+		($who = recv($socket_handle, $reply, $SOCK_MAX_LENGTH, 0)) or die("Error with recv: $!\n");
+		$packets++;
+		{ use bytes; $size = length($reply); }
+		($port, $ip) = sockaddr_in($who);
+		if ($who ne $addr) {
+			($servport, $servip) = sockaddr_in($addr);
+			print "Response from different address ($ip:$port).\nExpected $servip:$servport\n";
+		}
+		while (($packets < $SOCK_MAX_PACKETS) && $size > $SOCK_PACKET_SIZE) {
+			if (select($rout = $rin, undef, undef, $SOCK_TIMEOUT)){
+				($who = recv($socket_handle, $msg, $SOCK_MAX_LENGTH, 0)) or die("Recv error: $!\n");
+				$packets++;
+				{ use bytes; $size += length($msg); }
+				($port, $ip) = sockaddr_in($who);
+				if ($who ne $addr) {
+					($servport, $servip) = sockaddr_in($addr);
+					print "Response from different address ($ip:$port).\nExpected $servip:$servport\n";
+				}
+				$reply .= $msg;
+			} else { last; }
+		}
+		$stats{'total_packets'}	+= $packets;
+		$stats{'total_bytes'}	+= $size;
+		return $reply;
+	} else {
+		return -5; # timeout
 	}
 }
 
@@ -1002,6 +1044,7 @@ sub conditional_sleep() {
 #============================================
 
 print '=' x 40 . "\n" . 'Started at: ' . localtime(time) ."\n\n";
+socket_new();
 db_getStatus();
 db_getServerInfo();
 db_getMapList();
@@ -1011,8 +1054,6 @@ if ($opt_verbose && $backend_status < 0) {
 	print "\t". error_msg($backend_status). "\n\n"; }
 
 $backend_status = 1;
-
-# main()
 
 while ($main_status) {
 	db_getStatus();
@@ -1035,6 +1076,10 @@ while ($main_status) {
 	} else {	# If no recognized client requests, then poll the server as per usual.
 
 		if ($urt_server) {				# Have a server IP address...
+
+			my $status = socket_connect($urt_addr);
+			urt_serverError($status) if (!$status);
+
 			if ($need_rcon_poll > 0) {		# Then query the server...
 				if (!$urt_rcon_pw) {
 					$backend_status = -12;
@@ -1055,7 +1100,6 @@ while ($main_status) {
 	conditional_sleep();
 }
 
-###########  END  #############
 
 __END__
 
@@ -1077,17 +1121,25 @@ rcon.pl [options]
 
 =head1 OPTIONS
 
+Abbreviations in square brackets.
+
 =over 8
 
-=item B<-h>
+=item *
+
+B<--help> [-h]
 
 Display this help message.
 
-=item B<-v>
+=item *
+
+B<--verbose> [-v]
 
 Increase output verbosity.
 
-=item B<-log> C</path/to/file>
+=item *
+
+B<-log> C</path/to/file>
 
 Log all output to a given file.
 
@@ -1099,7 +1151,7 @@ This program is released under a BSD style license. See LICENSE.txt file for det
 
 =head1 AUTHOR
 
-Jeff Genovy <jeffgenovy@gmail.com>
+jgen <jgen@lavabit.com>
 
 =cut
 
