@@ -32,12 +32,23 @@ my $opt_help	= 0;			# Output help and exit if set
 
 # ----- Database Configuration -------
 # TODO: centralized config for database - shared between rcon.pl and interface.php
-my $db_driver		= 'SQLite';#'mysql';
-my $db_host 		= 'localhost';
-my $db_port		= '13390';
-my $db_database		= 'fakeserv.db';#'urt_rad';
-my $db_user		= '';#'rconlogs';
-my $db_pass		= '';#'urtlogs';
+
+my %db;
+my $db_config_file = 'db_config.php';
+
+#my $db_driver		= 'SQLite';
+#my $db_host 		= 'localhost';
+#my $db_port		= '13390';
+#my $db_database		= 'fakeserv.db';
+#my $db_user		= '';
+#my $db_pass		= '';
+
+#my $db_driver		= 'mysql';
+#my $db_host 		= 'localhost';
+#my $db_port		= '13390';
+#my $db_database		= 'urt_rad';
+#my $db_user		= 'rconlogs';
+#my $db_pass		= 'urtlogs';
 
 
 # ----- Urban Terror Sever Variables ------
@@ -134,36 +145,118 @@ if ($opt_log) {
 }
 
 
-#-- Check if we can connect to that type of database -----------
-my %server_drivers = map {$_, 1} DBI->available_drivers();
-if ( !exists $server_drivers{$db_driver} ) {
-	die ('No driver is currently installed for a "'. $db_driver. '" database.'."\n"); }
+#--- Read in the database config ---
+# (Add an option to wait for the config...)
 
-if ($db_driver ne 'SQLite') {
-	if (!inet_aton($db_host)) {
-		die ('Could not resolve database host "'. $db_host .'".'."\n"); }
+if ( !( -e $db_config_file ) || !( -r $db_config_file ) ) {
+	die('The database config file is either missing, or unaccessable.'."\n\t".'(File: '.$db_config_file.")\n"); }
+if (-z $db_config_file) {
+	die('The database config file is empty [0 bytes].'."\n\t".'(File: '.$db_config_file.")\n"); }
 
-	if (int($db_port) > 65535 || int($db_port) < 0) {
-		die ('Invalid port ['. $db_port .'] specified for database server.'."\n"); }
+if ((stat($db_config_file))[7] > 1024 ) {
+	die ("The database config file is too large.\nI don't feel safe opening it. (size > 1 kB)\n"); }
 
-	if (!length($db_database)) {
-		die ('No database specified for the program to use.'); }
-
-	if (!length($db_user)) {
-		die ('No user name set for database access.');	}
-
-	if (!length($db_pass)) {
-		print 'Using an empty password. Consider setting a password for more security.'."\n"; }
+my $dbconfig; # Read the entire file into $dbconfig
+{
+	local($/, *hndl);
+	open(hndl, '<', $db_config_file) or die('Unable to open the file!');
+	$dbconfig = <hndl>;
+	close(hndl) or die('Unable to close the file!');
 }
+
+if ($dbconfig =~ m/%db\s*=\s*\(([^\);]*)\);/) {
+	$dbconfig = $1;
+} else {
+	die("Error reading the database config file.\nCould not find the config section.\n");
+}
+
+if ($dbconfig =~ m/'driver'\s*=>\s*'([^']+)'/) {
+	$db{'driver'} = $1;
+} else {
+	die("No database driver was specified in the database config file.");
+}
+
+# -- Check if we can connect to that type of database --
+my %server_drivers = map {$_, 1} DBI->available_drivers();
+if ( !exists $server_drivers{$db{'driver'}} ) {
+	print 'No driver is currently installed for a "'. $db{'driver'} .'" database.'."\n";
+	print "Available drivers: ";
+	$, = ', ';
+	print keys %server_drivers;
+	die("\n");
+}
+
+# If the database is SQLite, then we do not need host,port,username, & password.
+if ($db{'driver'} !~ m/sqlite/io) {
+	if ($dbconfig =~ m/'host'\s*=>\s*'([^']*)'/) {
+		$db{'host'} = $1;
+
+		if (!inet_aton($db{'host'})) {
+			die ('Could not resolve database host "'. $db{'host'} .'".'."\n");
+		}
+	} else {
+		die("No database host was specified in the database config file.");
+	}
+
+	if ($dbconfig =~ m/'port'\s*=>\s*'([^']*)'/) {
+		$db{'port'} = int($1);
+
+		if (int($db{'port'}) > 65535 || int($db{'port'}) < 0) {
+			die ('Invalid port ['. $db{'port'} .'] specified for database server.'."\n");
+		}
+	} else {
+		die("No port number was specified in the database config file.");
+	}
+
+	if ($dbconfig =~ m/'user'\s*=>\s*'([^']*)'/) {
+		$db{'user'} = $1;
+
+		if (!length($db{'user'})) {
+			die ('No user name was specified in the database config file.');
+		}
+	} else {
+		die ("No username was specified in the database config file.");
+	}
+
+	if ($dbconfig =~ m/'pass'\s*=>\s*'([^']*)'/) {
+		$db{'pass'} = $1;
+
+		if (!length($db{'pass'})) {
+			print 'Using an empty password. Consider setting a password for more security.'."\n";
+		}
+	} else {
+		$db{'pass'} = '';
+		print "No password was specified in the database config file. Consider setting one.";
+	}
+}
+
+if ($dbconfig =~ m/'database'\s*=>\s*'([^']*)'/) {
+	$db{'database'} = $1;
+	if (!length($db{'database'})) {
+		die ('No database specified for the program to use.');
+	}
+	# If the database is SQLite, then check if the database file is accessable...
+	if ($db{'driver'} =~ m/sqlite/io) {
+		if ( !( -e $db{'database'} ) || !( -r $db{'database'} ) ) {
+			die('The SQLite database file is either missing, or unaccessable.'."\n\t".'Filename Specified in Config: '.$db{'database'}."\n");
+		}
+		if (-z $db{'database'}) {
+			die('The SQLite database file is empty [0 bytes].'."\n\t".'Filename Specified in Config: '.$db{'database'}."\n");
+		}
+	}
+} else {
+	die("No database name (schema) was specified in the database config file.");
+}
+
 
 # ---- Setup global database connector variables ----
 my $dsn = '';
-if ($db_driver eq 'SQLite') {
-	$dsn = "dbi:SQLite:dbname=$db_database";
+if ($db{'driver'} =~ m/sqlite/io) {
+	$dsn = 'dbi:SQLite:dbname='.$db{'database'};
 } else {
-	$dsn = "dbi:$db_driver:database=$db_database;host=$db_host;port=$db_port";;
+	$dsn = 'dbi:'.$db{'driver'}.':database='.$db{'database'}.';host='.$db{'host'}.';port='.$db{'port'}.';';
 }
-my $dbhandle = DBI->connect($dsn, $db_user, $db_pass) 
+my $dbhandle = DBI->connect($dsn, $db{'user'}, $db{'pass'}) 
 	or die("Unable to connect to the database.\n". DBI->errstr ."\n");
 
 
