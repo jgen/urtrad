@@ -3,8 +3,8 @@
 -- Sept. 2009
 -- ------------------------------------------------------
 
---CREATE SCHEMA IF NOT EXISTS `urt_rad` DEFAULT CHARACTER SET latin5;
---USE `urt_rad`;
+-- CREATE SCHEMA IF NOT EXISTS `urt_rad` DEFAULT CHARACTER SET latin5;
+-- USE `urt_rad`;
 
 -- -----------------------------------------------------
 -- Table `urt_rad`.`weapons`
@@ -83,8 +83,8 @@ CREATE  TABLE IF NOT EXISTS `ips` (
   `player_id` INTEGER UNSIGNED NULL ,
   `creation` DATETIME NULL );
 
-CREATE INDEX IF NOT EXISTS `ips_ip_index` ON `ips` (`ip` ASC);
-CREATE INDEX IF NOT EXISTS `ips_pid_index` ON `ips` (`player_id` ASC);
+CREATE INDEX `ips_ip_index` ON `ips` (`ip` ASC);
+CREATE INDEX `ips_pid_index` ON `ips` (`player_id` ASC);
 
 
 -- -----------------------------------------------------
@@ -95,7 +95,7 @@ CREATE  TABLE IF NOT EXISTS `guids` (
   `guid` CHAR(32) NOT NULL ,
   `player_id` INTEGER UNSIGNED NULL );
 
-CREATE INDEX IF NOT EXISTS `guid_pid_index` ON `guids` (`player_id` ASC);
+CREATE INDEX `guid_pid_index` ON `guids` (`player_id` ASC);
 
 -- -----------------------------------------------------
 -- Table `urt_rad`.`rcon_log`
@@ -108,8 +108,8 @@ CREATE  TABLE IF NOT EXISTS `rcon_log` (
   `slot` TINYINT UNSIGNED NULL ,
   `action` TINYINT UNSIGNED NULL );
 
-CREATE INDEX IF NOT EXISTS `rconlog_pid_index` ON `rcon_log` (`player_id` ASC);
-CREATE INDEX IF NOT EXISTS `rconlog_ip_index` ON `rcon_log` (`ip` ASC);
+CREATE INDEX `rconlog_pid_index` ON `rcon_log` (`player_id` ASC);
+CREATE INDEX `rconlog_ip_index` ON `rcon_log` (`ip` ASC);
 
 
 -- -----------------------------------------------------

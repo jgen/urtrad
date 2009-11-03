@@ -1,19 +1,16 @@
 -- ------------------------------------------------------
 -- urtRAD Database Creation
--- Sept. 2009
+-- Oct. 2009
 -- ------------------------------------------------------
 
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='TRADITIONAL';
 
-CREATE SCHEMA IF NOT EXISTS `urt_rad` DEFAULT CHARACTER SET latin5;
-USE `urt_rad`;
-
 -- -----------------------------------------------------
--- Table `urt_rad`.`weapons`
+-- Table `weapons`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`weapons` (
+CREATE  TABLE IF NOT EXISTS `weapons` (
   `weapon_id` TINYINT UNSIGNED PRIMARY KEY ,
   `internal_name` VARCHAR(45) NOT NULL ,
   `weapon_name` VARCHAR(64) NOT NULL ,
@@ -22,9 +19,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`gametypes`
+-- Table `gametypes`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`gametypes` (
+CREATE  TABLE IF NOT EXISTS `gametypes` (
   `game_id` TINYINT UNSIGNED PRIMARY KEY ,
   `game_name` VARCHAR(45) NOT NULL ,
   `total_rounds` BIGINT UNSIGNED NOT NULL ,
@@ -36,9 +33,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`maps`
+-- Table `maps`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`maps` (
+CREATE  TABLE IF NOT EXISTS `maps` (
   `map_id` INTEGER UNSIGNED PRIMARY KEY ,
   `map_name` VARCHAR(144) NOT NULL ,
   `times_played` INTEGER UNSIGNED NULL ,
@@ -47,9 +44,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`current_players`
+-- Table `current_players`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`current_players` (
+CREATE  TABLE IF NOT EXISTS `current_players` (
   `slot_num` TINYINT UNSIGNED PRIMARY KEY ,
   `score` SMALLINT NOT NULL ,
   `ping` SMALLINT UNSIGNED NOT NULL ,
@@ -61,9 +58,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`status`
+-- Table `status`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`status` (
+CREATE  TABLE IF NOT EXISTS `status` (
   `backend_status` TINYINT NULL DEFAULT 0 ,
   `client_request` TINYINT UNSIGNED NULL DEFAULT 0 ,
   `log_lines_processed` BIGINT UNSIGNED NULL DEFAULT 0 ,
@@ -74,9 +71,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`players`
+-- Table `players`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`players` (
+CREATE  TABLE IF NOT EXISTS `players` (
   `player_id` INTEGER UNSIGNED PRIMARY KEY ,
   `name` VARCHAR(32) NOT NULL ,
   `duration` BIGINT UNSIGNED NOT NULL DEFAULT 0 ,
@@ -85,9 +82,9 @@ ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`ips`
+-- Table `ips`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`ips` (
+CREATE  TABLE IF NOT EXISTS `ips` (
   `ip` INTEGER UNSIGNED NOT NULL ,
   `ip_text` CHAR(15) ASCII NOT NULL ,
   `player_id` INTEGER UNSIGNED NULL ,
@@ -96,32 +93,32 @@ CREATE  TABLE IF NOT EXISTS `urt_rad`.`ips` (
   INDEX `player_id` (`player_id` ASC) ,
   CONSTRAINT `player_id`
     FOREIGN KEY (`player_id` )
-    REFERENCES `urt_rad`.`players` (`player_id` )
+    REFERENCES `players` (`player_id` )
     ON DELETE CASCADE
     ON UPDATE NO ACTION)
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`guids`
+-- Table `guids`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`guids` (
+CREATE  TABLE IF NOT EXISTS `guids` (
   `guid_id` INTEGER UNSIGNED PRIMARY KEY ,
   `guid` CHAR(32) ASCII NOT NULL ,
   `player_id` INTEGER UNSIGNED NULL ,
   INDEX `player_id` (`player_id` ASC) ,
   CONSTRAINT `player_id`
     FOREIGN KEY (`player_id` )
-    REFERENCES `urt_rad`.`players` (`player_id` )
+    REFERENCES `players` (`player_id` )
     ON DELETE CASCADE
     ON UPDATE NO ACTION)
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`rcon_log`
+-- Table `rcon_log`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`rcon_log` (
+CREATE  TABLE IF NOT EXISTS `rcon_log` (
   `log_id` BIGINT UNSIGNED PRIMARY KEY ,
   `datetime` DATETIME NOT NULL ,
   `player_id` INTEGER UNSIGNED NOT NULL ,
@@ -132,21 +129,21 @@ CREATE  TABLE IF NOT EXISTS `urt_rad`.`rcon_log` (
   INDEX `ip` (`ip` ASC) ,
   CONSTRAINT `player_id`
     FOREIGN KEY (`player_id` )
-    REFERENCES `urt_rad`.`players` (`player_id` )
+    REFERENCES `players` (`player_id` )
     ON DELETE CASCADE
     ON UPDATE NO ACTION,
   CONSTRAINT `ip`
     FOREIGN KEY (`ip` )
-    REFERENCES `urt_rad`.`ips` (`ip` )
+    REFERENCES `ips` (`ip` )
     ON DELETE CASCADE
     ON UPDATE NO ACTION)
 ENGINE = MyISAM  ROW_FORMAT = FIXED;
 
 
 -- -----------------------------------------------------
--- Table `urt_rad`.`servers`
+-- Table `servers`
 -- -----------------------------------------------------
-CREATE  TABLE IF NOT EXISTS `urt_rad`.`servers` (
+CREATE  TABLE IF NOT EXISTS `servers` (
   `server_id` TINYINT UNSIGNED PRIMARY KEY ,
   `status` TINYINT NULL DEFAULT 0 ,
   `ip` INTEGER UNSIGNED NULL ,
