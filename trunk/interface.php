@@ -162,7 +162,8 @@ if (array_key_exists('status', $_REQUEST)) {
 	mysql_free_result($results);
 
 	
-	$qry = 'SELECT * FROM `servers`';
+	//$qry = 'SELECT * FROM `servers`';
+	$qry = 'SELECT server_id,status,ip,port,name,current_map,timeouts,timeout_last,timeout_delay,timeout_wait_delay,svars FROM `servers`';
 	$results = mysql_query($qry, $db_link);
 
 	if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
@@ -261,7 +262,7 @@ if (array_key_exists('status', $_REQUEST)) {
 } else if (array_key_exists('server_pw', $_REQUEST)) {
 	/* UPDATE THE RCON PASSWORD */
 		// some kind of user account validation should be required
-
+/*
 	$qry = 'SELECT * FROM `servers`';
 	$results = mysql_query($qry, $db_link);
 	if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
@@ -275,7 +276,7 @@ if (array_key_exists('status', $_REQUEST)) {
 		$results = mysql_query($qry, $db_link);
 		if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
 	}
-
+*/
 } else if (array_key_exists('search_name', $_REQUEST)) {
 	/* SEARCH FOR NAME */
 	if (array_key_exists('name_text', $_REQUEST)) {
@@ -320,8 +321,8 @@ function search_db($value, $type, $link) {
 
 		$str = str_replace("%", "\%", $value);
 		$str = str_replace("_", "\_", $str);
-		$str = str_replace("?", "_", $str);
-		$str = str_replace("*", "%", $str);
+		$str = str_replace("?", "_", $str); // _ = single character wildcard in SQL
+		$str = str_replace("*", "%", $str); // % = multi  character wildcard in SQL
 
 		$str = mysql_real_escape_string($str, $link);
 
@@ -344,7 +345,7 @@ function search_db($value, $type, $link) {
 				$qry = 'SELECT r.log_id, date_format(r.`datetime`,"%Y %m %d %T") AS log_time, r.ip, r.slot, r.`action`,
 						p.player_id, p.name, date_format(p.creation,"%Y %m %d %T") AS player_created 
 					FROM rcon_log r JOIN players p USING(player_id)
-					WHERE r.player_id IN (SELECT i.player_id FROM ips i WHERE i.ip_text LIKE "'. $str .'") ORDER BY log_time';				
+					WHERE r.player_id IN (SELECT i.player_id FROM ips i WHERE i.ip_text LIKE "'. $str .'") ORDER BY log_time';
 				break;
 			default:
 				echo('Unsupported search type specified.');
