@@ -16,13 +16,10 @@ Array.prototype.remove = function (from, to) {
 
 var RemoteInterface = {};
 
-// shortcut
-var ri = RemoteInterface;
 
+// IP Address conversion functions By jgen
 
-// IP Address conversion functions
-
-ri.long2ip = function (proper_address) {
+RemoteInterface.long2ip = function (proper_address) {
 	// Convert 4-byte unsigned integer to human-readable address [IPv4 only]
 	var input = parseInt(proper_address, 10);
 
@@ -36,7 +33,7 @@ ri.long2ip = function (proper_address) {
 		Math.floor(((input % 16777216) % 65536) % 256);
 };
 
-ri.ip2long = function (ip_address) {
+RemoteInterface.ip2long = function (ip_address) {
 	// Convert IP address string to unsigned integer [IPv4 only]
 	// quick check on ip ( matches 0.0.0.0 - 999.999.999.999)
 	var parts = [];
@@ -79,15 +76,14 @@ var aItemData = [
 					id: "configuremenuitem",
 					submenu: {
 						id: "configmenu",
-						itemdata: [
-							{ text: "RCON password", id: 'serverpassword' },
-							{ text: "Server Setup", id: 'serverconfig' },
-							{ text: "Database Setup", id: 'databaseconfig' }
-						]
+						itemdata: [	{ text: "RCON password", id: 'serverpassword' },
+								{ text: "Server Setup", id: 'serverconfig' },
+								{ text: "Database Setup", id: 'databaseconfig' }
+							]
 					}
 				},
 				{ text: "Options", id: "options" }
-			]
+			]	
 		}
 	},
 	{
@@ -106,11 +102,10 @@ var aItemData = [
 	{
 		text: "Help",
 		submenu: {
-		id: "helpmenuitem",
-			itemdata: [
-				{ text: "Help", id: "help_reference" },
-				{ text: "About", id: "about" }
-			]
+			id: "helpmenuitem",
+			itemdata: [	{ text: "Help", id: "help_reference" },
+					{ text: "About", id: "about" }
+				]
 		}
 	}
 ];
@@ -360,7 +355,7 @@ var aItemData = [
 					var map = status_data.server.current_map;
 					var pw = status_data.server.rcon_pw;
 
-					var ip = long2ip(parseInt(status_data.server.ip, 10));
+					var ip = RemoteInterface.long2ip(parseInt(status_data.server.ip, 10));
 					var port = parseInt(status_data.server.port, 10);
 					var t_delay = parseInt(status_data.server.timeout_delay, 10);
 					var t_wait = parseInt(status_data.server.timeout_wait_delay, 10);
@@ -610,10 +605,10 @@ var aItemData = [
 			temp.oSearchDataSource = new YAHOO.util.LocalDataSource( o.responseText );
 			temp.oSearchDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
 			
-			if (search_data.type == "name") {
+			if (search_data.type == "search_name") {
 				temp.oSearchDataSource.responseSchema = oSearchNameSchema;
 				temp.oSearchTable = new YAHOO.widget.DataTable( id_table, aSearchNameTableColums, temp.oSearchDataSource, oSearchNameTableConfigs);
-			} else if (search_data.type == "ip") {
+			} else if (search_data.type == "search_ip") {
 				temp.oSearchDataSource.responseSchema = oSearchIpSchema;
 				temp.oSearchTable = new YAHOO.widget.DataTable( id_table, aSearchIpTableColums, temp.oSearchDataSource, oSearchIpTableConfigs);
 			} else {
@@ -804,7 +799,7 @@ var aItemData = [
 			{key:'score', parser:'number'},
 			{key:'ping', parser:'number'},
 			{key:'name'},
-			{key:'ip', parser: long2ip },
+			{key:'ip', parser: RemoteInterface.long2ip },
 			{key:'qport', parser:'number'},
 			{key:'rate', parser:'number'} ],
 		metaFields: { rows: 'rows' }
