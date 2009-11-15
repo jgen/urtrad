@@ -287,7 +287,7 @@ var aItemData = [
 			zIndex: 2
 		} );
 	oStatusPanel.setHeader("Status");
-	oStatusPanel.setBody("This panel contains information on the backend and the server.<br><br><div id='status_tabs'><\/div>");
+	oStatusPanel.setBody("This panel contains information on the backend.<br><br><div id='status_tabs'><\/div>");
 	oStatusPanel.setFooter("<span id='status_refresh'><\/span>");
 	oStatusPanel.render(document.body);
 
@@ -300,7 +300,7 @@ var aItemData = [
 	var fUpdateStatus = function() {
 		var back_tab = document.getElementById('status_backend_tab');
 		var serv_tab = document.getElementById('status_server_tab');
-		var sQuery = config.sUrlBase + '?status';
+		var sQuery = config.sUrlBase + '?serverstatus';
 		var tmp_str = '';
 				
 		var hdl_successful = function(o) {
@@ -308,11 +308,12 @@ var aItemData = [
 				var status_data = '';
 				try { status_data = YAHOO.lang.JSON.parse(o.responseText); }
 				catch (e) { RemoteInterface.alert('An error occured while parsing the reply from the server...'); }
+
+				if (status_data.backend !== undefined) {
+					var status = parseInt(status_data.backend.backend_status, 10);
+					var last_update = status_data.backend.last_update;
+					var msg = '';
 				
-				var status = parseInt(status_data.backend.backend_status, 10);
-				var msg = '';
-				
-				if (status !== undefined) {
 					switch (status) {
 						case 2:
 							msg = 'Backend reports OK status.';	break;
@@ -345,26 +346,22 @@ var aItemData = [
 					}
 					
 					if (status > 1) {
-						back_tab.innerHTML = "<p class='status_ok'>" + msg + "<\/p>";
+						back_tab.innerHTML = "<p class='status_ok'>" + msg + "<\/p><p>Last Update: "+ last_update +"<\/p>";
 					} else {
-						back_tab.innerHTML = "<p class='status_err'>" + msg + "<\/p>";
+						back_tab.innerHTML = "<p class='status_err'>" + msg + "<\/p><p>Last Update: "+ last_update +"<\/p>";
 					}
 				}
 				if (status_data.server !== undefined) {
 					var name = status_data.server.name;
 					var map = status_data.server.current_map;
-					var pw = status_data.server.rcon_pw;
 
 					var ip = RemoteInterface.long2ip(parseInt(status_data.server.ip, 10));
 					var port = parseInt(status_data.server.port, 10);
 					var t_delay = parseInt(status_data.server.timeout_delay, 10);
 					var t_wait = parseInt(status_data.server.timeout_wait_delay, 10);
 					var timeouts = parseInt(status_data.server.timeouts, 10);
-					var timeout_last = parseInt(status_data.server.timeout_last, 10);
-					var timeout_Date = new Date(timeout_last * 1000);
-
-					var srv_pw = document.getElementById('srv_rcon_pw');
-					if (srv_pw && srv_pw.value == '') { srv_pw.value = pw; }
+					//var timeout_last = parseInt(status_data.server.timeout_last, 10);
+					//var timeout_Date = new Date(timeout_last * 1000);
 
 					var srv_port = document.getElementById('srv_port');
 					if (srv_port && srv_port.value == '') { srv_port.value = port; }
@@ -384,7 +381,8 @@ var aItemData = [
 					tmp_str += "<tr><td>IP Address<\/td><td>"+ ip +"<\/td><\/tr>";
 					tmp_str += "<tr><td>Port<\/td><td>"+ port +"<\/td><\/tr>";
 					tmp_str += "<tr><td>Map<\/td><td>"+ map +"<\/td><\/tr>";
-					tmp_str += "<tr><td>Last Timeout<\/td><td>"+ timeout_Date.toGMTString() +"<\/td><\/tr>";
+					tmp_str += "<tr><td>Timeouts<\/td><td>"+ timeouts +"<\/td><\/tr>";
+					//tmp_str += "<tr><td>Last Timeout<\/td><td>"+ timeout_Date.toGMTString() +"<\/td><\/tr>";
 					tmp_str += "<\/tbody><\/table>";
 
 					serv_tab.innerHTML = tmp_str;
@@ -415,7 +413,7 @@ var aItemData = [
 			timeout: 1500		
 		};
 		
-		var request = YAHOO.util.Connect.asyncRequest('GET', sQuery, status_callback, null);
+		YAHOO.util.Connect.asyncRequest('GET', sQuery, status_callback, null);
 	};
 	
 	var oStatusRefresh = new YAHOO.widget.Button({ label:"Refresh", id:"statusupdate", container:"status_refresh", type: "button" });
@@ -766,6 +764,66 @@ var aItemData = [
 	oSearchIpDlg.render(document.body);
 
 
+	var fUpdateServerInfo = function() {
+		var server_info_area = document.getElementById('server_info_section');
+		var sQuery = config.sUrlBase + '?status';
+		var tmp_str = '';
+				
+		var hdl_successful = function(o) {
+			if (o.responseText !== undefined) {
+				var status_data = '';
+				try { status_data = YAHOO.lang.JSON.parse(o.responseText); }
+				catch (e) { RemoteInterface.alert('An error occured while parsing the reply from the server...'); }
+				
+				if (status_data.server !== undefined) {
+					var name = status_data.server.name;
+					var map = status_data.server.current_map;
+
+					var ip = RemoteInterface.long2ip(parseInt(status_data.server.ip, 10));
+					var port = parseInt(status_data.server.port, 10);
+
+					var srv_port = document.getElementById('srv_port');
+					if (srv_port && srv_port.value == '') { srv_port.value = port; }
+
+					var srv_ip = document.getElementById('srv_ip_address');
+					if (srv_ip && srv_ip.value == '') { srv_ip.value = ip; }
+
+					tmp_str = "<table class='server_info'><tbody>";
+					tmp_str += "<tr><td>Server Name<\/td><td class='name'>"+ name +"<\/td><\/tr>";
+					tmp_str += "<tr><td>Address<\/td><td>"+ ip +":"+ port +"<\/td><\/tr>";
+					//tmp_str += "<tr><td>Port<\/td><td>"+ port +"<\/td><\/tr>";
+					tmp_str += "<tr><td>Map<\/td><td>"+ map +"<\/td><\/tr>";
+					tmp_str += "<\/tbody><\/table>";
+
+					server_info_area.innerHTML = tmp_str;
+
+					return true;
+				}
+			}
+		};
+
+		var hdl_failure = function(o) {
+			if (o.responseText !== undefined) {
+				tmp_str = "<p class='error_title'>An error occured while communcating to the server<\/p>";
+				tmp_str += "<p class='error_small'><u>Details:<\/u><br>";
+				tmp_str += "Transaction id: "+ o.tId +"<br>HTTP status: "+ o.status +"<br>";
+				tmp_str += "Status code message: "+ o.statusText +"<\/p>";
+				server_info_area.innerHTML = tmp_str;
+			} else {
+				RemoteInterface.alert('The server response was invalid.');
+			}
+		};
+		
+		var status_callback = {
+			success: hdl_successful,
+			failure: hdl_failure,
+			argument: null,
+			timeout: 1500		
+		};
+
+		YAHOO.util.Connect.asyncRequest('GET', sQuery, status_callback, null);
+	};
+
 	var oCurrentPlayers = new YAHOO.widget.Panel("current_players", {
 	/*		width:"700px",
 			height:"400px", */
@@ -778,7 +836,7 @@ var aItemData = [
 			constraintoviewport:true,
 			zIndex: -1
 		} );
-	oCurrentPlayers.setBody("<div id='player_table'><\/div>");
+	oCurrentPlayers.setBody("<div id='server_info_section'><\/div><div id='player_table'><\/div>");
 	oCurrentPlayers.render(document.body);
 	
 	var aPlayerTableColumns = [
@@ -812,14 +870,22 @@ var aItemData = [
 	
 	var oPlayerTable = new YAHOO.widget.DataTable("player_table", aPlayerTableColumns, oPlayerDataSource, oPlayerTableConfigs);
 	
+	var oPlayerTableState = oPlayerTable.getState();
+
 	var PlayerDataCallback = {
-		success: oPlayerTable.onDataReturnInitializeTable,
-		failure: oPlayerTable.onDataReturnInitializeTable, /* function() { alert("Error getting player list from database backend."); }, */
-		scope: oPlayerTable
+		success: oPlayerTable.onDataReturnSetRows,
+		failure: oPlayerTable.onDataReturnSetRows, /* function() { alert("Error getting player list from database backend."); }, */
+		scope: oPlayerTable,
+		argument: oPlayerTable.getState()
 	};
+
 	
-	oPlayerDataSource.setInterval(4000, null, PlayerDataCallback);
 	// TODO: If Possible: only poll backend if the playerlist panel is visible...
+	oPlayerDataSource.setInterval(4000, null, PlayerDataCallback);
+
+	oPlayerDataSource.subscribe("responseEvent", fUpdateServerInfo);
+	
+
 
 	// Listeners for the MenuBar
 	YAHOO.util.Event.addListener("about", "click", oAboutPanel.show, oAboutPanel, true);

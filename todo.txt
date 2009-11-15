@@ -3,8 +3,6 @@
 
 TODO:
 
-	* Support sqlite for database.
-
 	* Add support for kicking/banning via web interface.
 
 	* Server History (UI for 'rcon_log' table)
@@ -24,6 +22,11 @@ TODO:
 
 	* Work on log rotation over ftp
 
+WIP:
+
+	* Support sqlite for database. (rcon.pl can use sqlite, but interface.php can't)
+
+	* Add a 'setup' page that can create the database tables.
 
 DONE:
 	* Redesign database to not use packing of ips
