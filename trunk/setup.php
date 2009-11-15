@@ -3,10 +3,11 @@
  * Oct. 2009 - jgen
  */
 
-$fname = 'db_config.php';
-$sql_file = 'radmode_database.sql';
+require_once('config.php');
+require_once('functions.php');
 
-$database_drivers = array ('mysql');
+$fname = DB_CONFIG_FILE;
+$sql_file = DB_SQL_FILE;
 
 $db = array('driver'=>'','host'=>'','port'=>'','database'=>'','user'=>'','pass'=>'');
 
@@ -31,7 +32,7 @@ if (array_key_exists('makeconfig', $_REQUEST)) {
 			exit;
 		}
 		
-		if (in_array($_REQUEST['d'], $database_drivers)) {
+		if (in_array($_REQUEST['d'], $DB_DRIVERS)) {
 			$db['driver'] = $_REQUEST['d'];
 		} else {
 			echo 'Sorry, but this PHP installation does not have a database driver for "'.$_REQUEST['d'].'".';
@@ -253,89 +254,4 @@ function output_body_setup() {
 	</div>
 </body>
 </html>
-<?php }
-
-/* Create a MySQL database schema from a file, with optional overwrite.
- * Please: _Backup your data_ before overwriting a database.
- */
-function create_db_from_file($name, $file, $link, $overwrite = FALSE) {
-
-	if (!$name) { die("No database name passed to create_db_from_file."); }
-	if (!$file) { die("No filename specified to create_db_from_file."); }
-	if (!$link) { die("No database link passed to create_db_from_file."); }
-
-	$name = mysql_real_escape_string($name, $link);
-
-	// Check if the database name already exists
-	if (mysql_select_db($name, $link)) {
-		if ($overwrite) {
-			// delete the existing database.
-			$qry = 'DROP DATABASE `'. $name .'`';
-			if (mysql_query($qry, $link) === FALSE) {
-				echo "Error: Could not delete the old database.\n";
-				die('Error: ' . mysql_errorno . ' - ' . mysql_error());
-			}
-		} else {
-			die("Error: A database already exists with that name.");
-		}
-	}
-
-	$qry = 'CREATE SCHEMA IF NOT EXISTS `'.$name.'` DEFAULT CHARACTER SET latin5';
-
-	if (mysql_query($qry, $link) === FALSE) {
-		echo "Error: Could not create the new database.\n";
-		die('Error: ' . mysql_errorno . ' - ' . mysql_error());
-	}
-	if (!mysql_select_db($name, $link)) {
-		echo "Could not select the newly created database.\n";
-		die('Error: ' . mysql_errorno . ' - ' . mysql_error());
-	}
-
-	execute_sql_file($file, $link);
-}
-
-/* Load in a SQL file (ex: commands.sql) and
- * execute it against a MySQL database link.
- *
- * Note: NO CHECKING IS DONE ON THE SQL ITSELF
- */
-function execute_sql_file($fname, $link) {
-
-	if (!$fname || !$link) { die("Invalid call to function execute_sql_file().\n"); }
-
-	if (file_exists($fname)) {
-		if (($fsize = filesize($fname)) > pow(2,16) ) {
-			echo 'The SQL file seems quite large. It really should not be this big. Please look into this...';
-			echo "\n\nFilename: $fname\nSize: $fsize\n\n\n"; exit;
-		}
-		$fp = fopen($fname, 'r', 0);
-
-		if ($fp) {
-			$fcontent = file_get_contents($fname);
-
-			if (fclose($fp) === FALSE) {
-				echo "Could not close the file ($fname)."; exit;
-			}
-		} else {
-			echo "Can not open file to read ($fname)."; exit;
-		}
-	} else {
-		echo "The requested SQL file does not exists or is missing."; exit;
-	}
-
-	$queries = preg_split("/;+(?=([^'|^\\\']*['|\\\'][^'|^\\\']*['|\\\'])*[^'|^\\\']*[^'|^\\\']$)/", $fcontent);
-
-	foreach ($queries as $qry) {
-		if (strlen(trim($qry)) > 0) {
-			if (mysql_query($qry, $link) === FALSE) {
-				echo "There was error executing one of the SQL statements.\n";
-			}
-		}
-	}
-}
-
-
-
-
-
-?>
+<?php } ?>

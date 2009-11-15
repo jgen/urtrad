@@ -3,6 +3,25 @@
  * August 2009 - jgen
  */
 
+require_once('config.php');
+
+$db_config = read_db_config_file();
+
+$db_link = mysql_connect($db_config['host'] .':'. $db_config['port'], $db_config['user'], $db_config['pass']);
+
+if (!$db_link) {
+	echo "Could not connect to the database.\n\n";
+	die('Error: ' . mysql_errorno . ' - ' . mysql_error());
+}
+
+if (!mysql_select_db( mysql_real_escape_string($db_config['database']) ) ) {
+	echo "Unable to select database.\n\n";
+	die('Error: ' . mysql_errorno . ' - ' . mysql_error());
+}
+
+$qry = '';
+
+
 // HTTP/1.1 -- Don't cache the page.
 // (We don't want the browser to use any stale content.)
 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
@@ -10,180 +29,59 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Last-Modified: '. gmdate('D, d M Y H:i:s') .' GMT'); // Always modified
 
-/* --- Read in the config file for the database ---
- *
- * Perhaps just read it once, store an md5sum of the file
- * and only re-read the config file if the md5sum changes
- * (ie: the file contents have changed)?
- *
- * -Tested-
- * Caching the config file does not have any noticeable
- * performance effect on my Virtual Machine...
- */
 
-$database_drivers = array ('mysql');
-$fname = 'db_config.php';
-$fsize = 0;
-$fcontent ='';
-$db_config = array('driver'=>'','host'=>'','port'=>'','database'=>'','user'=>'','pass'=>'');
-
-if (file_exists($fname)) {
-	if (($fsize = filesize($fname)) > 1024) {
-		echo 'The config file seems quite large. It really should be rather small. Please look into this...';
-		echo "\n\nFilename: $fname\nSize: $fsize\n\n\n(The file should be under 1Kb)"; exit;
-	}
-	$fp = fopen($fname, 'r', 0);
-
-	if ($fp) {
-		$fcontent = file_get_contents($fname);
-
-		if (fclose($fp) === FALSE) {
-			echo "Could not close the file ($fname)."; exit;
-		}
-	} else {
-		echo "Can not open file to read ($fname)."; exit;
-	}
-} else {
-	echo "The database config is missing."; exit;
-}
-
-// Put the contents of the first comment ( /* This style */ ) into $matches[1]
-if (preg_match('/^\s*<\?php\s*[^\/\*]*\/\*([^\*\/]*)\*\//', $fcontent, $matches) == 0) {
-	echo "Sorry, but I could not correctly read the config file."; exit;
-}
-if (empty ($matches[1])){
-	echo "The database config must be put in the first multi-line comment in the file."; exit;
-}
-
-/* Store the contents of the config hash in $config_hash[1]
- *
- * There is a Possible Bug here if the username, password, etc
- * contains the two characters ');' in a row.
- *   Hopefully it won't...
- */
-if (preg_match('/%db\s*=\s*\(([^\);]*)\);/', $matches[1], $config_hash) == 0) {
-	echo "The config section of the file is missing."; exit;
-}
-if (empty ($config_hash[1])) {
-	echo "The config section is empty."; exit;
-}
-
-// Read in each part of the config...
-if (preg_match("/'driver'\s*=>\s*'([^']*)'/", $config_hash[1], $matchdriver) == 0) {
-	echo "No database driver specified."; exit;
-}
-$db_config['driver'] = $matchdriver[1];
-
-if (preg_match("/'host'\s*=>\s*'([^']*)'/", $config_hash[1], $matchhost) == 0) {
-	echo "No database host specified."; exit;
-}
-$db_config['host'] = $matchhost[1];
-
-if (preg_match("/'port'\s*=>\s*'([^']*)'/", $config_hash[1], $matchport) == 0) {
-	echo "No port number was specified."; exit;
-}
-$db_config['port'] = $matchport[1];
-
-if (preg_match("/'database'\s*=>\s*'([^']*)'/", $config_hash[1], $matchdb) == 0) {
-	echo "No database was specified."; exit;
-}
-$db_config['database'] = $matchdb[1];
-
-if (preg_match("/'user'\s*=>\s*'([^']*)'/", $config_hash[1], $matchuser) == 0) {
-	echo "No user name was specified."; exit;
-}
-$db_config['user'] = $matchuser[1];
-
-if (preg_match("/'pass'\s*=>\s*'([^']*)'/", $config_hash[1], $matchpass) == 0) {
-	echo "No password was specified.";
-	$db_config['pass'] = '';
-}
-$db_config['pass'] = $matchpass[1];
-
-
-/* Check the config & copy it over the the database variables. */
-
-// Check that the given host address is a valid IP address.
-$host_str = trim( $db_config['host'] );
-$hostaddr = trim(long2ip( ip2long( $host_str )));
-
-if ( strcmp($host_str, $hostaddr) == 0 ) {
-	$db_host = $hostaddr;
-} else {
-	echo 'Sorry, but the IP entered for the database server appears invalid.'; exit;
-}
-// Check that the port number is valid (0 - 65536)
-if ( is_numeric($db_config['port']) && (intval($db_config['port']) > 0) && (intval($db_config['port']) < pow(2,16)) ) {
-	$db_port = intval($db_config['port']);
-} else {
-	echo 'Sorry, but that is an invalid port number "'. $db_config['port'] .'".'; exit;
-}
-// Check that we have a driver for that type of database.
-if (in_array($db_config['driver'], $database_drivers)) {
-	$db_driver = $db_config['driver'];
-} else {
-	echo 'Sorry, but this program currently does not support the "'.$db_config['driver'].'" database driver.'; exit;
-}
-
-// These really should be checked as well...
-$db_user = $db_config['user'];
-$db_pass = $db_config['pass'];
-$db_name = $db_config['database'];
-
-
-/*----- Now the database config has been loaded, main part starts -----*/
-
-$qry = '';
-
-$db_link = mysql_connect($db_host .':'. $db_port, $db_user, $db_pass);
-
-if (!$db_link) {
-	echo "Could not connect to the database.\n\n";
-	die('Error: ' . mysql_errorno . ' - ' . mysql_error());
-}
-
-if (!mysql_select_db( mysql_real_escape_string($db_name) ) ) {
-	echo "Unable to select database.\n\n";
-	die('Error: ' . mysql_errorno . ' - ' . mysql_error());
-}
-
-
-
-if (array_key_exists('status', $_REQUEST)) {
+if (array_key_exists('serverstatus', $_REQUEST)) {
 
 	$qry = 'SELECT * FROM `status`';
 	$results = mysql_query($qry, $db_link);
 
 	if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
-	if (mysql_num_rows($results) != 1) { echo "There is a problem with the Status table in the database."; die(); }
+	if (mysql_num_rows($results) != 1) { echo "There is a problem with the status table in the database."; die(); }
 
 	$returnValue = array( 'backend' => mysql_fetch_assoc($results) );
 
 	mysql_free_result($results);
 
-	
-	//$qry = 'SELECT * FROM `servers`';
+	// Changed so that it does not show the rcon password. -- Was $qry = 'SELECT * FROM `servers`';
 	$qry = 'SELECT server_id,status,ip,port,name,current_map,timeouts,timeout_last,timeout_delay,timeout_wait_delay,svars FROM `servers`';
 	$results = mysql_query($qry, $db_link);
 
 	if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
-	if (mysql_num_rows($results) != 1) { echo "There is a problem with the Status table in the database."; die(); }
+	if (mysql_num_rows($results) != 1) { echo "There is a problem with the servers table in the database."; die(); }
 	
 	$returnValue['server'] = mysql_fetch_assoc($results);
 
 	mysql_free_result($results);
 
-
 	echo( json_encode($returnValue) );
 
+} else if (array_key_exists('status', $_REQUEST)) {
+
+	$qry = 'SELECT server_id,status,ip,port,name,current_map,svars FROM `servers`';
+	$results = mysql_query($qry, $db_link);
+
+	if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
+	if (mysql_num_rows($results) != 1) { echo "There is a problem with the servers table in the database."; die(); }
+	
+	$returnValue = array( 'server' => mysql_fetch_assoc($results) );
+
+	mysql_free_result($results);
+
+	echo( json_encode($returnValue) );
+	
 } else if (array_key_exists('players', $_REQUEST)) {
 
-	// Do some kind of caching to a file based on current time()
-	// to reduce database queries.
-
-	// make file called "playercache_time()"
-	// check if (current time() > (filetime + 3s))
-
+	/* Do some kind of caching to a file based on current time()
+	 * to reduce database queries.
+	 *
+	 * ex: Make file called 'playercache_'.time() and check if (current time() > (filetime + 3s))
+	 *
+	 * This would work, but how to you remove the files?
+	 * -There will be an overhead associated with creating and deleting files,
+	 *  that may negate any savings the caching gives you...
+	 * -This would probably only be worthwhile if you are being hit with many many database queries..
+	 */
+	
 	$qry = 'SELECT * FROM `current_players`';
 	$results = mysql_query($qry, $db_link);
 
@@ -308,6 +206,7 @@ if (array_key_exists('status', $_REQUEST)) {
 } else {
 	echo('Invalid request');
 
+	// For debugging...
 	if ($_REQUEST) {
 		echo("\n---Variable Dump---\n");
 		print_r($_REQUEST);
