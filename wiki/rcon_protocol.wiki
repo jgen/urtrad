@@ -30,6 +30,11 @@ Anything that can be done as an rcon command in game can also be done via this m
 
 This means that all the familiar commands work (status, kick, etc...)
 
+= Blacklisted Characters =
+
+The quake3 server does not allow any variable to contain:
+
+`\ ; "`
 
 = Commands =
 
@@ -37,20 +42,24 @@ Not all commands require rcon access.
 
 The 'getstatus' command is what is used by sites like Gametracker and programs like Qtracker to retrieve information from a server.
 
+In the table below `PW` is the rcon password.
 
 || *Command* || *Info* || *Tested Remotely* ||
 || `getstatus` || Returns a basic list of players and the server config || Yes ||
 || `getinfo` || Returns a short description on the server (name, map, players..) || Yes ||
 || `getchallenge` || Returns an integer for a challenge response || Yes ||
-|| `rcon status`  || Returns list of players and their information || Yes ||
-|| `rcon serverinfo` || Returns a formatted list of the same information as `getstatus` || Yes ||
-|| `rcon fdir *.bsp` || Returns list of all maps on the server || Yes ||
-|| `rcon map <map name>` || Changes current map || Yes ||
-|| `rcon kick <player name>` || Kicks the player with the matching name  || No ||
-|| `rcon clientkick <player slot>` || Kicks the player in the given slot || Yes ||
-|| `rcon addip <IP>` || Adds the given IP to the ban list || Yes ||
-|| `rcon removeip <IP>` || Removes the given IP from the ban list || Yes ||
-|| `rcon dumpuser <slot>` || Returns a formatted list of player infomation || Yes ||
+|| `rcon PW status`  || Returns list of players and their information || Yes ||
+|| `rcon PW serverinfo` || Returns a formatted list of the same information as `getstatus` || Yes ||
+|| `rcon PW fdir *.bsp` || Returns list of all maps on the server || Yes ||
+|| `rcon PW map <map name>` || Changes current map || Yes ||
+|| `rcon PW kick <player name>` || Kicks the player with the matching name  || Yes ||
+|| `rcon PW clientkick <player slot>` || Kicks the player in the given slot || Yes ||
+|| `rcon PW addip <IP>` || Adds the given IP to the ban list || Yes ||
+|| `rcon PW removeip <IP>` || Removes the given IP from the ban list || Yes ||
+|| `rcon PW dumpuser <slot>` || Returns a formatted list of player infomation || Yes ||
+|| `rcon PW echo TEXT`  || Echos back the TEXT to you || Yes ||
+|| `rcon PW say TEXT`  || Prints the text at the bottom of the game screen 'console: TEXT' || Yes ||
+|| `rcon PW cvarlist`  || Dumps out all of the cvars and their values || Yes ||
 
 
 = Shell Script =
@@ -72,10 +81,5 @@ printf '\xFF\xFF\xFF\xFFgetstatus\n' | nc -u -n -w 1 <SERVER_IP> <SERVER_PORT>
 (Replace `<PASSWORD>`, `<SERVER_IP>`, `<SERVER_PORT>` above with the actual values)
 
 
-= Blacklisted Characters =
 
-The quake3 server does not allow any variable to contain:
-
-`\ ; "`
-	
 	
