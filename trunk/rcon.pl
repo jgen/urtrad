@@ -14,7 +14,7 @@ use Data::Dumper;			# To be removed later
 $Data::Dumper::Sortkeys = 1;		# Sort the output of hashes by default
 $Data::Dumper::Indent = 1;		# Mild indentation
 
-use Time::HiRes qw/usleep/;
+#use Time::HiRes qw/usleep/;
 
 use POSIX qw/strftime/;			# Date/time Formatting
 use Getopt::Long;			# Command-line Options
@@ -26,30 +26,16 @@ require './urt_common.pl';		# Not currently used fully, maybe later on [useful f
 
 
 # ----- Command line Options -----
-my $opt_verbose	= 0;			# Verbosity of output (0=limited, 1, 2=detailed)
+my $opt_verbose	= 0;			# Verbosity of output (0=limited, 1=normal, 2=detailed)
 my $opt_log	= '';			# Log all output to a given file
 my $opt_help	= 0;			# Output help and exit if set
 
 
 # ----- Database Configuration -------
-# TODO: centralized config for database - shared between rcon.pl and interface.php
-
+# Centralized config for database
+# - shared between rcon.pl and interface.php
 my %db;
 my $db_config_file = 'db_config.php';
-
-#my $db_driver		= 'SQLite';
-#my $db_host 		= 'localhost';
-#my $db_port		= '13390';
-#my $db_database		= 'fakeserv.db';
-#my $db_user		= '';
-#my $db_pass		= '';
-
-#my $db_driver		= 'mysql';
-#my $db_host 		= 'localhost';
-#my $db_port		= '13390';
-#my $db_database		= 'urt_rad';
-#my $db_user		= 'rconlogs';
-#my $db_pass		= 'urtlogs';
 
 
 # ----- Urban Terror Sever Variables ------
@@ -75,6 +61,22 @@ my $SOCK_MAX_LENGTH	= 1500;		# Ethernet MTU is 1500 bytes -- Absolute maximum is
 my $SOCK_MAX_PACKETS	= 64;		# Maximum number of packets for a response
 my $SOCK_TIMEOUT	= 1;		# Seconds to wait for Secondary response (additional packets)
 my $SOCK_PACKET_SIZE	= 950;		# Approx. size of ioQuake3 packet after which messages are split
+
+
+# ----- Polling Configuration -----
+# Amount of time to wait between polling events (in seconds)
+
+my $SLEEP__NO_RCON_PW		= 10;
+my $SLEEP__NO_SERVER_CFG	= 20;
+my $SLEEP__BAD_RCON_PW		= 30;
+my $SLEEP__PAUSE_REQUEST	= 30;
+my $SLEEP__UNKNOWN_ERROR	= 15;
+my $SLEEP__DEFAULT 		=  3;
+my $SLEEP__NEED_RCON_POLL	=  1;
+
+# How long to wait for somebody to connect
+# (Default is 3 minutes)
+my $MAX_CONNECTION_TIME = int( 180 / $SLEEP__DEFAULT );
 
 
 # ----- Status Table Vars -----
@@ -289,10 +291,10 @@ END {
 
 ######### Subroutines #########
 
+# Dump debug information to stdout/log file.
 sub dump_debug() {
 	my $indent = $Data::Dumper::Indent; # save current indent level
 
-	# Dump debug information
 	print '-' x 40 . "\n";
 	print '['. localtime(time()) ."]\n";
 	print '-->  Dumping Debug Information:'."\n";
@@ -382,7 +384,7 @@ sub db_getServerInfo() {
 	$servers_query_hndl->finish();
 }
 
-
+# Get the list of maps from the database and store them in the map_list hash.
 sub db_getMapList() {
 	my $map_qry = 'SELECT * FROM `maps`';
 	my $map_qry_hndl = $dbhandle->prepare($map_qry) or die("Unable to prepare query.\n". $dbhandle->errstr ."\n");
@@ -513,15 +515,6 @@ sub urt_getStatus() {
 		}
 		$just_rcon_polled = 0;
 		
-		# Only delete players from the list that are NOT actually connected.
-		#  ie: have no slot, or are in 'connecting' hash.
-#		foreach (keys %secondary_player_hash) {
-#			if (!exists($secondary_player_hash{$_}->{slot})	){
-#				delete $secondary_player_hash{$_}; } }
-#
-#		foreach (keys %connecting_players) {
-#			delete $secondary_player_hash{$_}; }
-		
 		# Temporary variables
 		my $name = '';
 		my $ping = 0;
@@ -576,8 +569,8 @@ sub urt_getStatus() {
 	}
 }
 
+# Retrieve the full map listing from the server.
 sub urt_getMapList() {
-	# retrieve the full map listing from the server.
 	print '['.localtime(time)."] Requesting full map list from server....\n";
 
 	my $msg = chr(255) x 4 . 'rcon '. $urt_rcon_pw .' fdir *.bsp'. chr(12);
@@ -603,6 +596,7 @@ sub urt_getMapList() {
 	}
 }
 
+# Called when the same IP and slot has a different name.
 sub changeName($$$$) {
 	my $old		= shift || undef;	# Old player name
 	my $new		= shift || undef;	# New player name
@@ -672,6 +666,7 @@ sub changeName($$$$) {
 	$ips_qry_hndl->finish();
 }
 
+# Called when a new player name is detected.
 sub newPlayer($$$) {
 	# Check the database for existing entries that match the IP / Name and update them Or create new entries.
 	# Also: Add a new player to the main_player_hash
@@ -774,6 +769,7 @@ sub newPlayer($$$) {
 		delete $connecting_players{$player}; }
 }
 
+# Main function that handles player joins, disconnects, stats, etc.
 sub db_doPlayerStats() {
 	my $time = time();		# Store the current time ( for creating database entries and disconnects )
 	my $dtime = $dbhandle->quote( strftime('%F %T', localtime($time)) );	# datetime string: 'YYYY-MM-DD HH:MM:SS'
@@ -850,9 +846,9 @@ sub db_doPlayerStats() {
 
 						if ($opt_verbose > 1) {
 							warn 'Debug information: ';
-							print 'Player Name = ' . $player;
-							print Data::Dumper->Dump( [\$main_player_hash{$player}], ['$main_player_hash{'.$player.'}'] );
-							print Data::Dumper->Dump( [\$secondary_player_hash{$player}], ['$secondary_player_hash{'.$player.'}'] );
+							print 'Player Name = ' . $player ."\n";
+							print Data::Dumper->Dump( [$main_player_hash{$player}], ['$main_player_hash{'.$player.'}'] );
+							print Data::Dumper->Dump( [$secondary_player_hash{$player}], ['$secondary_player_hash{'.$player.'}'] );
 						}
 						# Is this really what should be done? remove the player?
 						#  Perhaps we can adjust their info and carry on...
@@ -883,10 +879,10 @@ sub db_doPlayerStats() {
 		foreach my $player (keys %connecting_players) {
 			if ( !exists($secondary_player_hash{$player}) ) {
 				if ($opt_verbose) {
-					print "A player connected to the the server, but disconnected before we could get their info.\n";
+					print "A player connected to the the server, but disconnected before we could get their info, or else they did not fully connect.\n";
 					print '  Name was: '.$player."\n";
 					if ($opt_verbose > 1) {
-						print Data::Dumper->Dump( [\$connecting_players{$player}], ['$connecting_players{'.$player.'}'] );
+						print Data::Dumper->Dump( [$connecting_players{$player}], ['$connecting_players{'.$player.'}'] );
 					}
 				}
 				delete $connecting_players{$player};
@@ -896,29 +892,24 @@ sub db_doPlayerStats() {
 					delete $connecting_players{$player};
 					$need_rcon_poll = 1;
 				} else {
-					if ($opt_verbose) { 
-						print 'Player '.$player.' is still connecting to the server'."\n";
-					}
+					if ($opt_verbose > 1) { print 'Player '.$player.' is still connecting.'."\n"; }
 
 					# Increment connection counter.
 					$connecting_players{$player} += 1;
 
-					# - After set amount of 'connections' perhaps remove them
-					#   from the list of connecting players to prevent them sitting
-					#   in the connecting_players hash forever...
-					#
-					#if ($connecting_players{$player} > $MAX_CONNECTION_TIME) {
-					#	if ($opt_verbose) { print "Player $player has been 'connecting' too long.\nRemoving them from the connecting hash.\n"; }
-					#	delete $connecting_players{$player};
-					#}
-					#
-
+					# Remove them from the list of real players
 					delete $secondary_player_hash{$player};
+
+					# After set amount of 'connections' remove them from the list of connecting players
+					# to prevent them sitting in the connecting_players hash forever...
+					if ($connecting_players{$player} > $MAX_CONNECTION_TIME) {
+						if ($opt_verbose) { print "Player $player has been 'connecting' too long.\nRemoving them from the connecting hash.\n"; }
+						delete $connecting_players{$player};
+					}
 				}
 			}
 		}
 	}
-
 
 	# II.) Now that the new list has been processed, update the player stats...
 
@@ -975,7 +966,7 @@ sub db_doPlayerStats() {
 				print ' -- Connected at: '. localtime($main_player_hash{$old}->{'time'}) . "\tDuration: ". $dur ." seconds\n";
 
 				if ($opt_verbose > 1) {
-					print Data::Dumper->Dump( [\$main_player_hash{$old}], ['$main_hash{\''.$old.'\'}'] );
+					print Data::Dumper->Dump( [$main_player_hash{$old}], ['$main_hash{\''.$old.'\'}'] );
 				}
 			}
 
@@ -1045,54 +1036,67 @@ sub db_updateStatus() {
 	$dbhandle->do('UPDATE `status` SET backend_status='.$backend_status.',log_lines_processed='.$log_lines_processed.',log_bytes_processed='.$log_bytes_processed.',log_last_check='.$log_last_check.',last_update='.$last_update);
 }
 
-# This function is called after an rcon update and the svars have changed
+
 sub db_updateServer() {
-	my ($qry, $map, $map_safe, $srv_name, $svars);
-	$qry = $map = $map_safe = $srv_name = $svars = '';
-	my $mapchange = 0;
-	
-	if ($urt_svars) {
-		$svars = $dbhandle->quote($urt_svars);
-		
-		my @svars = split(/\\/o, $urt_svars);	# bust up the server variables string
-		my %s_vars = @svars[1..$#svars];	# now store a hash of the game options
-	
-		if (!exists($s_vars{'mapname'}) || !exists($s_vars{'sv_hostname'})) {
-			warn 'Error: Something is wrong with the server svars...';
+	# Only update the server information if:
+	#  - we just did an rcon status update
+	#  - we need an rcon poll (because either a timeout occured OR the server svars have changed)
+	if ($just_rcon_polled == 1 || $need_rcon_poll == 1) {
+
+		my ($qry, $map, $map_safe, $srv_name, $svars);
+		$qry = $map = $map_safe = $srv_name = $svars = '';
+		my $mapchange = 0;
+
+		if ($urt_svars) {
+			$svars = $dbhandle->quote($urt_svars);
+
+			my @svars = split(/\\/o, $urt_svars);	# bust up the server variables string
+				my %s_vars = @svars[1..$#svars];	# now store a hash of the game options
+
+				if (!exists($s_vars{'mapname'}) || !exists($s_vars{'sv_hostname'})) {
+					warn 'Error: Something is wrong with the server svars...';
+				} else {
+					$map		= $s_vars{'mapname'};
+					$map_safe	= $dbhandle->quote( $map );
+					$srv_name	= $dbhandle->quote( $s_vars{'sv_hostname'} );
+
+					# check if the map is different than the previous one
+					if ($urt_map && $urt_map ne $map) {
+						$mapchange = 1;
+						if ($opt_verbose) { print 'Map change. ['.$urt_map.' -> '.$map."]\n"; }
+					}
+					$urt_map = $map;
+				}
+
+			$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'",name='.$srv_name.',current_map='.$map_safe.',svars='.$svars.' WHERE server_id='.$server_id;
 		} else {
-			$map		= $s_vars{'mapname'};
-			$map_safe	= $dbhandle->quote( $map );
-			$srv_name	= $dbhandle->quote( $s_vars{'sv_hostname'} );
+			$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'" WHERE server_id='.$server_id;
+		}	
 
-			# check if the map is different than the previous one
-			if ($urt_map && $urt_map ne $map) {
-				$mapchange = 1;
-				if ($opt_verbose) { print 'Map change. ['.$urt_map.' -> '.$map."]\n"; }
-			}
-			$urt_map = $map;
+		$dbhandle->do($qry) or die('Could not update database with server information...');
+
+		# If the map changed increment the play count, and update the `map` table
+		if ($map && $mapchange && exists($map_list_hash{$map})) {
+			$map_list_hash{$map} += 1;
+			db_updateMapList();
 		}
-		
-		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'",name='.$srv_name.',current_map='.$map_safe.',svars='.$svars.' WHERE server_id='.$server_id;
-	} else {
-		$qry = 'UPDATE `servers` SET timeouts='.$timeouts.',timeout_last="'.$timeout_last.'" WHERE server_id='.$server_id;
-	}	
 
-	$dbhandle->do($qry) or die('Could not update database with server information...');
+		# If a new map is seen, add to the hash, and update the `map` table
+		if ($map && !exists( $map_list_hash{$map} )) {
+			$map_list_hash{$map} = 1;
+			db_updateMapList();
+		}
 
-	# If the map changed then increment the play count on the new map name
-	if ($mapchange && $map && exists($map_list_hash{$map})) {
-		$map_list_hash{$map} += 1;
+		# TODO: Update the database [gametype] table(s) with info from new svars
+		# svars contain: gametype, gear information, timelimit, fraglimit, etc...
+		#
+		# Unfortunately there is now exact way to determine when the round/match is over.
+		# So there is really no definitive method to keep track of how many rounds/matches etc..
+		# - This information has to come from the log file.
 	}
-
-	# If a new map is seen, add to the hash, and update the [map] table
-	if ($map && !exists( $map_list_hash{$map} )) {
-		$map_list_hash{$map} = 1;
-		db_updateMapList();
-	}
-
-	# TODO: Update the database [gametype] table(s) with info from new svars
 }
 
+# Update the database map list with the current list of maps in the map_hash
 sub db_updateMapList() {
 	if ((keys %map_list_hash) > 1) {
 		my $name	= '';
@@ -1101,7 +1105,8 @@ sub db_updateMapList() {
 		my $rows	= 0;
 
 		foreach my $map (keys %map_list_hash) {
-			# TODO: unpack a string from the maplist hash that also has the 'duration'
+			# TODO: Somehow store the map 'duration' and save it to the database.
+			# ex: pack a string into the maplist hash that also has the 'duration'...
 
 			$name = $dbhandle->quote($map);
 			$times = int($map_list_hash{$map});
@@ -1136,25 +1141,23 @@ sub conditional_sleep() {
 		sleep($timeout_wait_delay * 2);
 	} elsif ($backend_status == -12) {
 		print 'rcon password not set yet, sleeping for 10 seconds'."\n";
-		sleep(10);		# No rcon pw, sleep for awhile
+		sleep($SLEEP__NO_RCON_PW);
 	} elsif ($backend_status == -13) {
 		print 'Waiting for server config, sleeping for 20 seconds'."\n";
-		sleep(20);
+		sleep($SLEEP__NO_SERVER_CFG);
 	} elsif ($backend_status == -10 ) {
 		print 'Bad rcon password, sleeping for 30 seconds'."\n";
-		sleep(30);
-	} elsif ($backend_status == 10) {	# client request to 'pause' the backend
+		sleep($SLEEP__BAD_RCON_PW);
+	} elsif ($backend_status == 10) {
 		print "(Paused)\n";
-		sleep(30);
+		sleep($SLEEP__PAUSE_REQUEST);
 	} elsif ($backend_status < 0) {
 		print 'An error occured. sleeping for 15 seconds'."\n";
-		sleep(15);
-	} elsif ($need_rcon_poll == 0) {
-		sleep(3)		# Default sleep time
-#		usleep(100_000);
+		sleep($SLEEP__UNKNOWN_ERROR);
+	} elsif ($need_rcon_poll == 1) {
+		sleep($SLEEP__NEED_RCON_POLL);	# Between 'getstatus' and 'rcon status'
 	} else {
-		sleep(1);		# Between getStatus and rconStatus
-#		usleep(50_000);
+		sleep($SLEEP__DEFAULT);
 	}
 }
 
