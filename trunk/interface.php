@@ -104,7 +104,7 @@ if (array_key_exists('serverstatus', $_REQUEST)) {
 
 } else if (array_key_exists('server_config', $_REQUEST)) {
 	/* UPDATE THE SERVER CONFIG */
-		// some kind of user account validation should be required
+/*		// some kind of user account validation should be required
 	$serv_ip = '';
 	$serv_port = '';
 	$serv_timeout = '';
@@ -156,7 +156,7 @@ if (array_key_exists('serverstatus', $_REQUEST)) {
 		$results = mysql_query($qry, $db_link);
 		if (!$results) { echo "Error preforming query.\n"; echo 'Error: ' . mysql_error(); die(); }
 	}
-
+*/
 } else if (array_key_exists('server_pw', $_REQUEST)) {
 	/* UPDATE THE RCON PASSWORD */
 		// some kind of user account validation should be required

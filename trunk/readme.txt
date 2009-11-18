@@ -17,22 +17,36 @@
         servers. Provides a web interface to allow easy/effective use.
 
     Files:
-        index.html
-            - Front end web interface.
-            - Uses the YUI library & other JavaScript components from
-              the resource subdirectory.
-
+	
         rcon.pl
             - Backend monitoring script.
             - Watches the Urban Terror server and feeds info/stats
-              into the database.
+              into the database.	
+	
+        index.html
+            - Front end web interface.
+		
+		remoteinterface.js
+            - Uses the YUI library to build up the GUI from index.html
 
         interface.php
             - Interface layer between web front end and database.
 
+		setup.php
+			- Setup script that will create the database tables and the config
+			  file that is shared between interface.php & rcon.pl
+		
+		config.php
+			- Functions/variables for writing the database config file
+		
+		functions.php
+			- Functions for reading in the sql file
+		
         radmode_database.sql
             - SQL to create database tables.
 
+		-- Not Used / Required --
+			
         radmode_database_sqlite.sql
             - SQL to create database for SQLite
 

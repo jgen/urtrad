@@ -22,7 +22,7 @@ use Pod::Usage;				# Command-line Documentation
 use Socket;				# Communicating with ioUrbanTerror Server
 use DBI;				# For database access
     
-require './urt_common.pl';		# Not currently used fully, maybe later on [useful for stats]
+#require './urt_common.pl';		# Not currently used fully, maybe later on [useful for stats]
 
 
 # ----- Command line Options -----
